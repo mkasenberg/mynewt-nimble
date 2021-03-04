@@ -20,71 +20,59 @@ BLE Stress Tests
 
 ******************************************************************************
 
-No | Use case
------------------------------------------------------------------------------
- 1 | Stress Connect -> Connect Cancel - repeat 1000
-   | RX: Nothing
-   | TX: Connect/Connect cancel
-   |
- 2 | Stress Connect/Disconnect legacy - repeat 1000
-   | RX: Advertise legacy
-   | TX: Connect/Disconnect
-   |
- 3 | Stress Connect/Disconnect ext adv - repeat 1000
-   | RX: Advertise Ext
-   | TX: Connect/Disconnect
-   |
- 4 | Stress connection params update (TX) - (1000)
-   | RX: Advertise
-   | TX: Connect/Connect param update
-   |
- 5 | Stress connection params update (RX) - (1000)
-   | RX: Advertise/Connect param update
-   | TX: Connect
-   |
- 6 | Stress Scan
-   | RX: Advertise a known data pattern
-   | TX: Scan and check received data with pattern
-   |
- 7 | Stress PHY Update (TX) - (1000)
-   | RX: Advertise
-   | TX: Connect/Phy update
-   |
- 8 | Stress PHY update (RX) - (1000)
-   | RX: Advertise/Phy update
-   | TX: Connect
-   |
- 9 | Stress multi connection
-   | RX: Advertise Ext
-   | TX: Establish and maintain as many instances as possible
-   |
-10 | Stress L2CAP send
-   | RX: Send 64kB of data with L2CAP
-   | TX: Measure bit rate and max received data MTU
-   |
-11 | Stress Advertise/Connect/Continue Adv/Disconnect
-   | RX: Advertise Ext/Continue same advertise after connect
-   | TX: Connect
-   |
-12 | Stress GATT indicating
-   | RX: Indicate
-   | TX: Receive indication. Measure average time of indicating.
-   |
-13 | Stress GATT notification
-   | RX: Notify. Measure average time of notifying.
-   | TX: Count the number of received notification.
-   |
-14 | Stress GATT Subscribe/Notify/Unsubscribe
-   | RX: Notify on subscribe
-   | TX: Measure the average time from sending a subscription request
-   |     to receiving a notification.
-   |
-15 | Stress Connect/Send/Disconnect
-   | RX: Advertise/Send via ATT/Disconnect
-   | TX: Receive notification. Measure time of notifying.
+|No | Use case
+|---|-------------------------------------------------------------------------
+| 1 | Stress Connect -> Connect Cancel - repeat 1000
+|   | RX: Nothing
+|   | TX: Connect/Connect cancel
+| 2 | Stress Connect/Disconnect legacy - repeat 1000
+|   | RX: Advertise legacy
+|   | TX: Connect/Disconnect
+| 3 | Stress Connect/Disconnect ext adv - repeat 1000
+|   | RX: Advertise Ext
+|   | TX: Connect/Disconnect
+| 4 | Stress connection params update (TX) - (1000)
+|   | RX: Advertise
+|   | TX: Connect/Connect param update
+| 5 | Stress connection params update (RX) - (1000)
+|   | RX: Advertise/Connect param update
+|   | TX: Connect
+| 6 | Stress Scan
+|   | RX: Advertise a known data pattern
+|   | TX: Scan and check received data with pattern
+| 7 | Stress PHY Update (TX) - (1000)
+|   | RX: Advertise
+|   | TX: Connect/Phy update
+| 8 | Stress PHY update (RX) - (1000)
+|   | RX: Advertise/Phy update
+|   | TX: Connect
+| 9 | Stress multi connection
+|   | RX: Advertise Ext
+|   | TX: Establish and maintain as many instances as possible
+|10 | Stress L2CAP send
+|   | RX: Send 64kB of data with L2CAP
+|   | TX: Measure bit rate and max received data MTU
+|11 | Stress Advertise/Connect/Continue Adv/Disconnect
+|   | RX: Advertise Ext/Continue same advertise after connect
+|   | TX: Connect
+|12 | Stress GATT indicating
+|   | RX: Indicate
+|   | TX: Receive indication. Measure average time of indicating.
+|13 | Stress GATT notification
+|   | RX: Notify. Measure average time of notifying.
+|   | TX: Count the number of received notification.
+|14 | Stress GATT Subscribe/Notify/Unsubscribe
+|   | RX: Notify on subscribe
+|   | TX: Measure the average time from sending a subscription request
+|   |     to receiving a notification.
+|15 | Stress Connect/Send/Disconnect
+|   | RX: Advertise/Send via ATT/Disconnect
+|   | TX: Receive notification. Measure time of notifying.
 
 ******************************************************************************
-   Concept:
+
+```
+Concept:
    The RX device advertises data containing a UUID128 of test use case that
    should be performed. The TX device scan for known UUIDs, when it finds,
    adapts to the advertised use case and runs a test.
@@ -199,3 +187,4 @@ No | Use case
      PHY updates = 20
      Use case 8 - Stress Connect -> Connect Cancel:
      PHY updates = 20
+```
