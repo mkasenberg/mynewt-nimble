@@ -35,3 +35,8 @@ pkg.deps:
     - nimble/host/services/gap
     - nimble/host/services/gatt
     - nimble/host/store/config
+
+pkg.cflags:
+    - -Wimplicit-function-declaration
+    - -Wno-unused-variable
+    - -Wno-unused-function

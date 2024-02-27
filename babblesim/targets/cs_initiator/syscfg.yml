@@ -21,3 +21,8 @@ syscfg.vals:
   BLE_MONITOR_UART: 1
   BLE_MONITOR_UART_DEV: '"uart1"'
   TIMER_3: 1
+
+pkg.cflags:
+    - -Wimplicit-function-declaration
+    - -Wno-unused-variable
+    - -Wno-unused-function
