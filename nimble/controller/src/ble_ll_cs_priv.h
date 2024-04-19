@@ -28,6 +28,19 @@
 extern "C" {
 #endif
 
+#define BLE_LL_CS_MODE0 (0)
+#define BLE_LL_CS_MODE1 (1)
+#define BLE_LL_CS_MODE2 (2)
+#define BLE_LL_CS_MODE3 (3)
+
+/* States within step */
+#define STEP_STATE_INIT          (0)
+#define STEP_STATE_CS_SYNC_I     (1)
+#define STEP_STATE_CS_SYNC_R     (2)
+#define STEP_STATE_CS_TONE_I     (3)
+#define STEP_STATE_CS_TONE_R     (4)
+#define STEP_STATE_COMPLETE      (5)
+
 #define BLE_LL_CS_ROLE_INITIATOR (0)
 #define BLE_LL_CS_ROLE_REFLECTOR (1)
 
@@ -43,6 +56,23 @@ extern "C" {
 /* CS Subevent interval in microseconds */
 #define BLE_LL_CS_SUBEVENT_LEN_MIN (1250)
 #define BLE_LL_CS_SUBEVENT_LEN_MAX (4000000)
+
+typedef int (*ble_ll_cs_sched_cb_func)(struct ble_ll_cs_sm *cssm);
+
+struct ble_ll_cs_step_transmission {
+    ble_ll_cs_sched_cb_func cb;
+    uint32_t duration_usecs;
+    uint32_t wfr_usecs;
+    uint16_t end_tifs;
+    uint8_t state;
+    uint8_t end_transition;
+};
+
+struct ble_ll_cs_aci {
+    uint8_t n_ap;
+    uint8_t n_a_antennas;
+    uint8_t n_b_antennas;
+};
 
 struct ble_ll_cs_supp_cap {
     uint8_t mode_types;
@@ -197,6 +227,13 @@ struct ble_ll_cs_sm {
     struct ble_ll_sched_item sch;
     sched_cb_func cb;
     uint32_t anchor_usecs;
+    ble_ll_cs_sched_cb_func sched_cb;
+    struct ble_ll_cs_step_transmission *step_transmission;
+
+    uint8_t step_mode;
+    uint8_t tone_ext_presence_i;
+    uint8_t tone_ext_presence_r;
+    uint8_t n_ap;
 };
 
 int ble_ll_cs_proc_scheduling_start(struct ble_ll_conn_sm *connsm, uint8_t config_id);
