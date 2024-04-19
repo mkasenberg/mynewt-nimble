@@ -70,6 +70,11 @@ extern "C" {
 /* The duration of the CS_SYNC (T_SY) without sequence in usec */
 #define BLE_LL_CS_SYNC_TIME_1M (44)
 #define BLE_LL_CS_SYNC_TIME_2M (26)
+/* Number of bits send in T_SY time */
+#define CS_SYNC_BITS_1M (44)
+#define CS_SYNC_BITS_2M (52)
+/* The duration of the T_FM in mode-0 in usec */
+#define CS_SYNC_MODE0_FM_TIME (80)
 
 typedef int (*ble_ll_cs_sched_cb_func)(struct ble_ll_cs_sm *cssm);
 
