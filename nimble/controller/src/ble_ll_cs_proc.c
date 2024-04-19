@@ -88,6 +88,25 @@ static uint32_t tifs_table[6][6];
 /* A pattern containing the states and transitions of the current step */
 static struct ble_ll_cs_step_transmission transmission_pattern[12];
 
+static const uint8_t antenna_path_permutations[] = {
+    {1, 2, 3, 4}, {2, 1, 3, 4}, {1, 3, 2, 4}, {3, 1, 2, 4}, {3, 2, 1, 4},
+    {2, 3, 1, 4}, {1, 2, 4, 3}, {2, 1, 4, 3}, {1, 4, 2, 3}, {4, 1, 2, 3},
+    {4, 2, 1, 3}, {2, 4, 1, 3}, {1, 4, 3, 2}, {4, 1, 3, 2}, {1, 3, 4, 2},
+    {3, 1, 4, 2}, {3, 4, 1, 2}, {4, 3, 1, 2}, {4, 2, 3, 1}, {2, 4, 3, 1},
+    {4, 3, 2, 1}, {3, 4, 2, 1}, {3, 2, 4, 1}, {2, 3, 4, 1}
+};
+
+static void
+ble_ll_cs_proc_free(struct ble_ll_cs_sm *cssm)
+{
+    ble_ll_sched_rmv_elem(&cssm->sch);
+    ble_ll_event_remove(&cssm->subevent_result_ev);
+    if (cssm->subevent_result_ev_buf) {
+        ble_transport_free(cssm->subevent_result_ev_buf);
+        cssm->subevent_result_ev_buf = NULL;
+    }
+}
+
 /* For queueing the HCI Subevent Result (Continue) events */
 static struct ble_npl_event subevent_pool[MYNEWT_VAL(BLE_LL_CHANNEL_SOUNDING_SUBEVENT_EV_MAX_CNT)];
 
@@ -246,6 +265,11 @@ void
 ble_ll_cs_proc_rm_from_sched(void *cb_args)
 {
     bs_trace_raw_time(0, "Scheduled item removed without being run!\n");
+    struct ble_ll_cs_sm *sm = cb_args;
+    /* The CS_SYNC possibly overlapped with a connection event.
+     * Consider using greater offset.
+     */
+    ble_ll_cs_proc_free(sm);
 }
 
 static int
@@ -1466,6 +1490,17 @@ ble_ll_cs_proc_schedule_next_tx_or_rx(struct ble_ll_cs_sm *cssm)
     return rc;
 }
 
+/* Called in HCI context */
+static void
+ble_ll_cs_subevent_result_ev(struct ble_npl_event *ev)
+{
+    struct ble_ll_cs_sm *cssm;
+
+    cssm = ble_npl_event_get_arg(ev);
+
+    /* TODO: generate HCI event */
+}
+
 void
 ble_ll_cs_proc_set_now_as_anchor_point(struct ble_ll_cs_sm *cssm)
 {
@@ -1535,6 +1570,7 @@ ble_ll_cs_proc_scheduling_start(struct ble_ll_conn_sm *connsm, uint8_t config_id
 
     rc = ble_ll_cs_proc_schedule_next_tx_or_rx(cssm);
     if (rc) {
+        ble_ll_cs_proc_free(cssm);
         return BLE_ERR_UNSPECIFIED;
     }
 
