@@ -945,6 +945,7 @@ ble_ll_cs_proc_sync_lost(struct ble_ll_cs_sm *cssm)
     ble_ll_cs_proc_set_now_as_anchor_point(cssm);
     ble_phy_transition_set(BLE_PHY_TRANSITION_NONE, 0);
     ble_phy_disable();
+    ble_phy_cs_sync_mode_set(0);
     ble_ll_state_set(BLE_LL_STATE_STANDBY);
     /* TODO: Handle a lost sync */
 }

@@ -21,11 +21,68 @@
 #if MYNEWT_VAL(BLE_LL_CHANNEL_SOUNDING)
 #include <stdint.h>
 #include "controller/ble_ll.h"
+#include "controller/ble_ll_conn.h"
 #include "controller/ble_ll_sched.h"
 #include "controller/ble_ll_tmr.h"
+#include "controller/ble_hw.h"
+#include "controller/ble_ll_hci.h"
+#include "mbedtls/aes.h"
+#include "ble_ll_priv.h"
 #include "ble_ll_cs_priv.h"
 
+extern struct ble_ll_cs_sm g_ble_ll_cs_sm[MYNEWT_VAL(BLE_MAX_CONNECTIONS)];
 extern struct ble_ll_cs_sm *g_ble_ll_cs_sm_current;
+extern int8_t g_ble_ll_tx_power;
+
+static uint8_t
+ble_ll_cs_sync_make(struct ble_ll_cs_sm *cssm, uint8_t *buf)
+{
+    int i;
+    int rc;
+    uint32_t aa;
+    struct ble_ll_cs_config *conf = cssm->active_config;
+    uint8_t sequence_len = 0;
+    uint8_t bits;
+
+    if (conf->rtt_type != BLE_LL_CS_RTT_AA_ONLY &&
+        cssm->step_mode != BLE_LL_CS_MODE0) {
+        rc = ble_ll_cs_drbg_generate_sync_sequence(
+            &cssm->drbg_ctx, cssm->steps_in_procedure_count, conf->rtt_type,
+            buf, &sequence_len);
+
+        if (rc) {
+            return 0;
+        }
+    }
+
+    /* Shift by 4 bits to make space for trailer bits */
+    if (sequence_len > 0) {
+        BLE_LL_ASSERT(sequence_len < BLE_PHY_MAX_PDU_LEN);
+        buf[sequence_len] = 0;
+        bits = 0;
+        for (i = sequence_len - 1; i >= 0; --i) {
+            bits = buf[i] >> 4;
+            buf[i] = (buf[i] << 4) & 0xF0;
+            buf[i + 1] = (buf[i + 1] & 0xF0) | bits;
+        }
+    }
+
+    if (conf->role == BLE_LL_CS_ROLE_INITIATOR) {
+        aa = cssm->initiator_aa;
+    } else {
+        aa = cssm->reflector_aa;
+    }
+
+    /* Set the trailer bits */
+    if (aa & 0x80000000) {
+        buf[0] |= 0x0A;
+    } else {
+        buf[0] |= 0x05;
+    }
+    ++sequence_len;
+
+    return sequence_len;
+}
 
 /**
  * Called when a CS pkt has been transmitted.
@@ -37,15 +94,77 @@ void
 ble_ll_cs_sync_tx_end_cb(void *arg)
 {
     struct ble_ll_cs_sm *cssm = (struct ble_ll_cs_sm *)arg;
+    uint32_t cputime;
+    uint32_t rem_us;
+    uint32_t rem_ns;
+    uint32_t end_anchor_usecs;
 
     BLE_LL_ASSERT(cssm != NULL);
+
+    ble_phy_get_txend_time(&cputime, &rem_us, &rem_ns);
+    end_anchor_usecs = ble_ll_tmr_t2u(cputime) + rem_us;
+
+    cssm->anchor_usecs = end_anchor_usecs + cssm->step_transmission->end_tifs;
     ble_ll_cs_proc_schedule_next_tx_or_rx(cssm);
+}
+
+static uint8_t
+ble_ll_cs_sync_tx_make(uint8_t *dptr, void *arg, uint8_t *hdr_byte)
+{
+    uint8_t pdu_len;
+    struct ble_ll_cs_sm *cssm = arg;
+
+    /* TODO: Unused fields in CS Sync packet */
+    pdu_len = ble_ll_cs_sync_make(cssm, dptr);
+    *hdr_byte = 0;
+
+    return pdu_len;
 }
 
 int
 ble_ll_cs_sync_tx_start(struct ble_ll_cs_sm *cssm)
 {
-    /* TODO: Start TX of CS SYNC */
+    int rc;
+    uint32_t cputime;
+    struct ble_ll_cs_step_transmission *step = cssm->step_transmission;
+    uint8_t rem_us;
+    uint8_t ll_state;
+
+    ll_state = ble_ll_state_get();
+    BLE_LL_ASSERT(ll_state == BLE_LL_STATE_STANDBY || ll_state == BLE_LL_STATE_CS);
+
+    ble_phy_cs_sync_mode_set(1);
+
+    ble_ll_tx_power_set(g_ble_ll_tx_power);
+
+    rc = ble_phy_cs_sync_configure(cssm->channel, cssm->tx_aa);
+    if (rc) {
+        ble_ll_cs_proc_sync_lost(cssm);
+        return 1;
+    }
+
+    cputime = ble_ll_tmr_u2t_r(cssm->anchor_usecs, &rem_us);
+
+    /* At transition the radio is already scheduled to start at the right time */
+    if (ll_state != BLE_LL_STATE_CS) {
+        ble_phy_transition_set(step->end_transition, step->end_tifs);
+
+        rc = ble_phy_tx_set_start_time(cputime, rem_us);
+        if (rc) {
+            ble_ll_cs_proc_sync_lost(cssm);
+            return 1;
+        }
+    }
+
+    ble_phy_set_txend_cb(ble_ll_cs_sync_tx_end_cb, cssm);
+
+    rc = ble_phy_tx_cs_sync(ble_ll_cs_sync_tx_make, cssm);
+    if (rc) {
+        ble_ll_cs_proc_sync_lost(cssm);
+        return 1;
+    }
+
+    ble_ll_state_set(BLE_LL_STATE_CS);
 
     return 0;
 }
@@ -53,9 +172,58 @@ ble_ll_cs_sync_tx_start(struct ble_ll_cs_sm *cssm)
 int
 ble_ll_cs_sync_rx_start(struct ble_ll_cs_sm *cssm)
 {
-    /* TODO: Start RX of CS SYNC */
+    int rc;
+    uint32_t cputime;
+    struct ble_ll_cs_step_transmission *step = cssm->step_transmission;
+    uint8_t ll_state;
+    uint8_t rem_us;
 
+    ll_state = ble_ll_state_get();
+    BLE_LL_ASSERT(ll_state == BLE_LL_STATE_STANDBY || ll_state == BLE_LL_STATE_CS);
+
+    ble_phy_cs_sync_mode_set(1);
+
+    rc = ble_phy_cs_sync_configure(cssm->channel, cssm->rx_aa);
+    if (rc) {
+        ble_ll_cs_proc_sync_lost(cssm);
+        return 1;
+    }
+
+    cputime = ble_ll_tmr_u2t_r(cssm->anchor_usecs, &rem_us);
+
+    if (ll_state == BLE_LL_STATE_CS) {
+        /* At transition the radio is already scheduled to start at the right time */
+        return 0;
+    }
+
+    ble_phy_transition_set(step->end_transition, step->end_tifs);
+
+    rc = ble_phy_rx_set_start_time(cputime, rem_us);
+    if (rc) {
+        ble_ll_cs_proc_sync_lost(cssm);
+        return 1;
+    }
+
+    ble_phy_wfr_enable(BLE_PHY_WFR_ENABLE_RX, 0, step->wfr_usecs);
+    ble_ll_state_set(BLE_LL_STATE_CS);
     return 0;
+}
+
+static struct ble_ll_cs_sm *
+ble_ll_cs_sync_find_sm_match_aa(uint32_t aa)
+{
+    int i;
+    struct ble_ll_cs_sm *cssm;
+
+    for (i = 0; i < ARRAY_SIZE(g_ble_ll_cs_sm); ++i) {
+        cssm = &g_ble_ll_cs_sm[i];
+
+        if (cssm->rx_aa == aa) {
+            return cssm;
+        }
+    }
+
+    return NULL;
 }
 
 /**
@@ -71,7 +239,14 @@ ble_ll_cs_sync_rx_start(struct ble_ll_cs_sm *cssm)
 int
 ble_ll_cs_sync_rx_isr_start(struct ble_mbuf_hdr *rxhdr, uint32_t aa)
 {
-    /* TODO: Verify CS Access Address */
+    struct ble_ll_cs_sm *cssm;
+
+    cssm = ble_ll_cs_sync_find_sm_match_aa(aa);
+
+    if (cssm == NULL) {
+        /* This is not the expected packet. Skip the frame. */
+        return -1;
+    }
 
     return 0;
 }
@@ -93,8 +268,19 @@ int
 ble_ll_cs_sync_rx_isr_end(uint8_t *rxbuf, struct ble_mbuf_hdr *rxhdr)
 {
     struct ble_ll_cs_sm *cssm = g_ble_ll_cs_sm_current;
+    uint32_t cputime;
+    uint32_t rem_us;
+    uint32_t rem_ns;
+    uint32_t end_anchor_usecs;
+
+    /* Packet type was verified in isr_start */
 
     BLE_LL_ASSERT(cssm != NULL);
+
+    ble_phy_get_rxend_time(&cputime, &rem_us, &rem_ns);
+    end_anchor_usecs = ble_ll_tmr_t2u(cputime) + rem_us;
+
+    cssm->anchor_usecs = end_anchor_usecs + cssm->step_transmission->end_tifs;
     ble_ll_cs_proc_schedule_next_tx_or_rx(cssm);
 
     return 1;
