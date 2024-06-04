@@ -2695,6 +2695,10 @@ ble_ll_ctrl_proc_init(struct ble_ll_conn_sm *connsm, int ctrl_proc, void *data)
             opcode = BLE_LL_CTRL_CS_TERMINATE_REQ;
             ble_ll_cs_terminate_req_make(connsm, ctrdata);
             break;
+        case BLE_LL_CTRL_PROC_CS_CH_MAP_UPD:
+            opcode = BLE_LL_CTRL_CS_CHANNEL_MAP_IND;
+            ble_ll_cs_channel_map_ind_make(connsm, ctrdata);
+            break;
 #endif
         default:
             BLE_LL_ASSERT(0);
@@ -3225,6 +3229,9 @@ ble_ll_ctrl_rx_pdu(struct ble_ll_conn_sm *connsm, struct os_mbuf *om)
         break;
     case BLE_LL_CTRL_CS_TERMINATE_RSP:
         ble_ll_cs_rx_cs_terminate_rsp(connsm, dptr);
+        break;
+    case BLE_LL_CTRL_CS_CHANNEL_MAP_IND:
+        rsp_opcode = ble_ll_ctrl_rx_cs_channel_map_ind(connsm, dptr, rspdata);
         break;
 #endif
     default:
