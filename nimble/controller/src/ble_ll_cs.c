@@ -1925,6 +1925,21 @@ ble_ll_cs_rx_cs_terminate_req_rejected(struct ble_ll_conn_sm *connsm, uint8_t bl
     ble_ll_cs_ev_cs_proc_enable_complete(connsm, connsm->cssm->config_req_id, ble_error);
 }
 
+static int
+ble_ll_cs_channel_map_ind_make(struct ble_ll_conn_sm *connsm, uint8_t *rspbuf)
+{
+    // TODO
+}
+
+int
+ble_ll_ctrl_rx_cs_channel_map_ind(struct ble_ll_conn_sm *connsm, uint8_t *dptr,
+                                  uint8_t *rspbuf)
+{
+    ble_ll_ctrl_rej_ext_ind_make(BLE_LL_CTRL_CS_CHANNEL_MAP_IND,
+                                 BLE_ERR_UNSUPPORTED, rspbuf);
+    return BLE_LL_CTRL_REJECT_IND_EXT;
+}
+
 int
 ble_ll_cs_hci_test(const uint8_t *cmdbuf, uint8_t cmdlen,
                    uint8_t *rspbuf, uint8_t *rsplen)
