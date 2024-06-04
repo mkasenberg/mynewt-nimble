@@ -1944,6 +1944,71 @@ int
 ble_ll_cs_hci_test(const uint8_t *cmdbuf, uint8_t cmdlen,
                    uint8_t *rspbuf, uint8_t *rsplen)
 {
+    const struct ble_hci_le_cs_test_cp *cmd = (const void *)cmdbuf;
+//    struct ble_hci_le_cs_test_rp *rsp = (void *)rspbuf;
+//    struct cs_test_params tp;
+//    int rc;
+
+    if (cmdlen != sizeof(*cmd)) {
+        return BLE_ERR_INV_HCI_CMD_PARMS;
+    }
+
+    if (!IN_RANGE(cmd->main_mode_type, 0x01, 0x03) ||
+        !(IN_RANGE(cmd->sub_mode_type, 0x01, 0x03) ||
+          cmd->sub_mode_type == 0xff) ||
+        !IN_RANGE(cmd->main_mode_repetition, 0x00, 0x03) ||
+        !IN_RANGE(cmd->mode_0_steps, 0x01, 0x03) ||
+        !IN_RANGE(cmd->role, 0x01, 0x02) ||
+        !IN_RANGE(cmd->rtt_type, 0x00, 0x06) ||
+        !IN_RANGE(cmd->cs_sync_phy, 0x01, 0x02) ||
+        !IN_RANGE(cmd->cs_sync_antenna_selection, 0x01, 0x04) ||
+        /* Subevent_Len [μs] range: 1250 μs to 4 s */
+        !IN_RANGE(get_le24(cmd->subevent_len), 0x0004E2, 0x3D0900) ||
+        /* Allowed Transmit_Power_Level range: -127 to +20,
+         * (Complement system + special meaning for 0x7E and 0x7F)
+         */
+        !(IN_RANGE(cmd->transmit_power_level, 0x00, 0x14) ||
+          IN_RANGE(cmd->transmit_power_level, 0x7E, 0xFF)) ||
+        !(cmd->t_ip1_time == 0x0a ||
+          cmd->t_ip1_time == 0x14 ||
+          cmd->t_ip1_time == 0x1e ||
+          cmd->t_ip1_time == 0x28 ||
+          cmd->t_ip1_time == 0x32 ||
+          cmd->t_ip1_time == 0x3c ||
+          cmd->t_ip1_time == 0x50 ||
+          cmd->t_ip1_time == 0x91) ||
+        !(cmd->t_ip2_time == 0x0a ||
+          cmd->t_ip2_time == 0x14 ||
+          cmd->t_ip2_time == 0x1e ||
+          cmd->t_ip2_time == 0x28 ||
+          cmd->t_ip2_time == 0x32 ||
+          cmd->t_ip2_time == 0x3c ||
+          cmd->t_ip2_time == 0x50 ||
+          cmd->t_ip2_time == 0x91) ||
+        !(cmd->t_fcs_time == 0x0f ||
+          cmd->t_fcs_time == 0x14 ||
+          cmd->t_fcs_time == 0x1e ||
+          cmd->t_fcs_time == 0x28 ||
+          cmd->t_fcs_time == 0x32 ||
+          cmd->t_fcs_time == 0x3c ||
+          cmd->t_fcs_time == 0x50 ||
+          cmd->t_fcs_time == 0x64 ||
+          cmd->t_fcs_time == 0x78 ||
+          cmd->t_fcs_time == 0x96) ||
+        !(cmd->t_pm_time == 0x0a ||
+          cmd->t_pm_time == 0x14 ||
+          cmd->t_pm_time == 0x28) ||
+        !(cmd->t_sw_time == 0x00 ||
+          cmd->t_sw_time == 0x01 ||
+          cmd->t_sw_time == 0x02 ||
+          cmd->t_sw_time == 0x04 ||
+          cmd->t_sw_time == 0x0a) ||
+        !IN_RANGE(cmd->tone_antenna_config_selection, 0x00, 0x07) ||
+        !IN_RANGE(cmd->companion_signal_enable, 0x00, 0x03) ||
+        (le16toh(cmd->override_config) & ~0b10111111101)) {
+        return BLE_ERR_INV_HCI_CMD_PARMS;
+    }
+
     return BLE_ERR_UNSUPPORTED;
 }
 
