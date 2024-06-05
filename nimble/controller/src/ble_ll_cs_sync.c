@@ -29,6 +29,7 @@
 #include "mbedtls/aes.h"
 #include "ble_ll_priv.h"
 #include "ble_ll_cs_priv.h"
+#include "bs_tracing.h"
 
 extern struct ble_ll_cs_supp_cap g_ble_ll_cs_local_cap;
 extern struct ble_ll_cs_sm g_ble_ll_cs_sm[MYNEWT_VAL(BLE_MAX_CONNECTIONS)];
@@ -132,12 +133,19 @@ ble_ll_cs_sync_tx_end_cb(void *arg)
     uint32_t rem_us;
     uint32_t rem_ns;
 
+    bs_trace_raw_time(0, "End of CS SYNC transmission\n");
+
     assert(cssm != NULL);
 
     ble_phy_get_txend_time(&cputime, &rem_us, &rem_ns);
     cssm->anchor_usecs = ble_ll_tmr_t2u(cputime) + rem_us;
     cssm->step_result.time_of_departure_us = cssm->anchor_usecs;
     cssm->step_result.time_of_departure_ns = rem_ns;
+
+    bs_trace_raw_time(0, "End of CS SYNC TX: %u[us] = %u[ticks] + %u[us] = %u[us] + %u[us]\n",
+                      cssm->anchor_usecs,
+                      cputime, rem_us,
+                      ble_ll_tmr_t2u(cputime), rem_us);
 
     ble_ll_cs_proc_schedule_next_tx_or_rx(cssm);
     ble_phy_transition_set(cssm->phy_transition);
@@ -172,6 +180,11 @@ ble_ll_cs_sync_tx_start(struct ble_ll_cs_sm *cssm)
     ll_state = ble_ll_state_get();
     BLE_LL_ASSERT(ll_state == BLE_LL_STATE_STANDBY || ll_state == BLE_LL_STATE_CS);
 
+    bs_trace_raw_time(0, "Starting CS SYNC TX: %u[us] = %u[ticks] + %u[us] = %u[us] + %u[us]\n",
+                      ble_ll_tmr_t2u(ble_ll_tmr_get()) + 0,
+                      ble_ll_tmr_get(), 0,
+                      ble_ll_tmr_t2u(ble_ll_tmr_get()), 0);
+
     ble_phy_cs_sync_mode_set(1);
 
     ble_ll_tx_power_set(g_ble_ll_tx_power);
@@ -192,6 +205,11 @@ ble_ll_cs_sync_tx_start(struct ble_ll_cs_sm *cssm)
             return 1;
         }
     }
+
+    bs_trace_raw_time(0, "Radio TX start: %u[us] = %u[ticks] + %u[us] = %u[us] + %u[us]\n",
+                      ble_ll_tmr_t2u(cputime) + rem_us,
+                      cputime, rem_us,
+                      ble_ll_tmr_t2u(cputime), rem_us);
 
     ble_phy_set_txend_cb(ble_ll_cs_sync_tx_end_cb, cssm);
 
@@ -218,6 +236,11 @@ ble_ll_cs_sync_rx_start(struct ble_ll_cs_sm *cssm)
     ll_state = ble_ll_state_get();
     BLE_LL_ASSERT(ll_state == BLE_LL_STATE_STANDBY || ll_state == BLE_LL_STATE_CS);
 
+    bs_trace_raw_time(0, "Starting CS SYNC RX: %u[us] = %u[ticks] + %u[us] = %u[us] + %u[us]\n",
+                      ble_ll_tmr_t2u(ble_ll_tmr_get()) + 0,
+                      ble_ll_tmr_get(), 0,
+                      ble_ll_tmr_t2u(ble_ll_tmr_get()), 0);
+
     ble_phy_cs_sync_mode_set(1);
 
     rc = ble_phy_cs_sync_configure(cssm->channel, cssm->rx_aa);
@@ -240,6 +263,11 @@ ble_ll_cs_sync_rx_start(struct ble_ll_cs_sm *cssm)
         ble_phy_wfr_enable(BLE_PHY_WFR_ENABLE_RX, 0, wfr_usecs);
         ble_ll_state_set(BLE_LL_STATE_CS);
     }
+
+    bs_trace_raw_time(0, "Radio RX start: %u[us] = %u[ticks] + %u[us] = %u[us] + %u[us]\n",
+                     ble_ll_tmr_t2u(cputime) + rem_us,
+                     cputime, rem_us,
+                     ble_ll_tmr_t2u(cputime), rem_us);
 
     return 0;
 }
@@ -318,6 +346,10 @@ ble_ll_cs_sync_rx_isr_end(uint8_t *rxbuf, struct ble_mbuf_hdr *rxhdr)
     cssm->step_result.time_of_arrival_us = cssm->anchor_usecs;
     cssm->step_result.time_of_arrival_ns = rem_ns;
 
+    bs_trace_raw_time(0, "End of CS SYNC reception, t=%d+%d=%d\n",
+                      ble_ll_tmr_t2u(cputime), rem_us,
+                      cssm->anchor_usecs);
+
     cssm->step_result.packet_rssi = rxhdr->rxinfo.rssi;
     cssm->step_result.packet_quality =
         ble_ll_cs_sync_calc_seq_quality(cssm, rxbuf, rxhdr);
@@ -355,6 +387,7 @@ ble_ll_cs_sync_rx_isr_end(uint8_t *rxbuf, struct ble_mbuf_hdr *rxhdr)
 void
 ble_ll_cs_sync_rx_pkt_in(struct os_mbuf *rxpdu, struct ble_mbuf_hdr *rxhdr)
 {
+    bs_trace_raw_time(0, "Received CS SYNC\n");
 }
 
 /**
@@ -366,6 +399,8 @@ void
 ble_ll_cs_sync_wfr_timer_exp(void)
 {
     struct ble_ll_cs_sm *cssm = g_ble_ll_cs_sm_current;
+
+    bs_trace_raw_time(0, "Did not receive any CS SYNC!\n");
 
     assert(cssm != NULL);
     ble_ll_cs_proc_set_now_as_anchor_point(cssm);

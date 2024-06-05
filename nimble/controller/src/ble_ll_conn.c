@@ -45,6 +45,7 @@
 #include "ble_ll_conn_priv.h"
 #include "ble_ll_ctrl_priv.h"
 #include "ble_ll_priv.h"
+#include "bs_tracing.h"
 #if MYNEWT_PKG_apache_mynewt_nimble__nimble_transport_common_hci_ipc
 #include <nimble/transport/hci_ipc.h>
 #endif
@@ -1495,6 +1496,9 @@ ble_ll_conn_event_start_cb(struct ble_ll_sched_item *sch)
     connsm = (struct ble_ll_conn_sm *)sch->cb_arg;
     g_ble_ll_conn_cur_sm = connsm;
     BLE_LL_ASSERT(connsm);
+
+    bs_trace_raw_time(0, "New conn event: anchor ticks %d, usecs %d\n",
+         connsm->anchor_point, ble_ll_tmr_t2u(connsm->anchor_point));
 
     /* In rare cases 1st connection event is fired before LL finished processing
      * new connection. In such case just skip this connection event and LL will
