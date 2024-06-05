@@ -33,13 +33,19 @@
     NRF_DPPIC10->CHENSET |= 1 << DPPI_CH_ ## _src;        \
     NRF_DPPIC20->CHENSET |= 1 << DPPI_CH_ ## _dst;
 
-/* Create PPIB links between RADIO and MCU power domain. */
+/* Create PPIB link from RADIO to MCU power domain. */
 #define PPIB_RADIO_MCU(_ch, _src, _dst)                   \
     NRF_PPIB10->SUBSCRIBE_SEND[_ch] = DPPI_CH_SUB(_src);  \
     NRF_PPIB00->PUBLISH_RECEIVE[_ch] = DPPI_CH_PUB(_dst); \
     NRF_DPPIC10->CHENSET |= 1 << DPPI_CH_ ## _src;        \
     NRF_DPPIC00->CHENSET |= 1 << DPPI_CH_ ## _dst;
 
+/* Create PPIB link from MCU to RADIO power domain. */
+#define PPIB_MCU_RADIO(_ch, _src, _dst)                   \
+    NRF_PPIB00->SUBSCRIBE_SEND[_ch] = DPPI_CH_PUB(_src);  \
+    NRF_PPIB10->PUBLISH_RECEIVE[_ch] = DPPI_CH_SUB(_dst); \
+    NRF_DPPIC10->CHENSET |= 1 << DPPI_CH_ ## _dst;        \
+    NRF_DPPIC00->CHENSET |= 1 << DPPI_CH_ ## _src;
 
 #define PPIB_RADIO_PERI_0(_src, _dst) PPIB_RADIO_PERI(0, _src, _dst)
 #define PPIB_RADIO_PERI_1(_src, _dst) PPIB_RADIO_PERI(1, _src, _dst)
@@ -48,6 +54,11 @@
 
 #define PPIB_RADIO_MCU_0(_src, _dst) PPIB_RADIO_MCU(0, _src, _dst)
 #define PPIB_RADIO_MCU_1(_src, _dst) PPIB_RADIO_MCU(1, _src, _dst)
+#define PPIB_RADIO_MCU_2(_src, _dst) PPIB_RADIO_MCU(2, _src, _dst)
+#define PPIB_RADIO_MCU_3(_src, _dst) PPIB_RADIO_MCU(3, _src, _dst)
+
+#define PPIB_MCU_RADIO_0(_src, _dst) PPIB_MCU_RADIO(0, _src, _dst)
+#define PPIB_MCU_RADIO_1(_src, _dst) PPIB_MCU_RADIO(1, _src, _dst)
 
 #if PHY_USE_DEBUG
 void
@@ -89,22 +100,24 @@ phy_debug_init(void)
 void
 phy_ppi_init(void)
 {
-    /* Publish events */
-    NRF_TIMER0->PUBLISH_COMPARE[0] = DPPI_CH_PUB(TIMER0_EVENTS_COMPARE_0);
-    NRF_TIMER0->PUBLISH_COMPARE[3] = DPPI_CH_PUB(TIMER0_EVENTS_COMPARE_3);
-    NRF_RADIO->PUBLISH_PHYEND = DPPI_CH_PUB(RADIO_EVENTS_END);
-
-    NRF_RADIO->PUBLISH_BCMATCH = DPPI_CH_PUB(RADIO_EVENTS_BCMATCH);
     NRF_RADIO->PUBLISH_ADDRESS = DPPI_CH_PUB(RADIO_EVENTS_ADDRESS);
+    NRF_RADIO->PUBLISH_END = DPPI_CH_PUB(RADIO_EVENTS_END);
+    NRF_RADIO->PUBLISH_PHYEND = DPPI_CH_PUB(RADIO_EVENTS_PHYEND);
+    NRF_RADIO->PUBLISH_BCMATCH = DPPI_CH_PUB(RADIO_EVENTS_BCMATCH);
     NRF_RTC0->PUBLISH_COMPARE[0] = DPPI_CH_PUB(RTC0_EVENTS_COMPARE_0);
 
     /* Enable channels we publish on */
     NRF_DPPIC->CHENSET = DPPI_CH_ENABLE_ALL;
 
-    /* radio_address_to_timer0_capture1 */
-    NRF_TIMER0->SUBSCRIBE_CAPTURE[1] = DPPI_CH_SUB(RADIO_EVENTS_ADDRESS);
-    /* radio_end_to_timer0_capture2 */
-    NRF_TIMER0->SUBSCRIBE_CAPTURE[2] = DPPI_CH_SUB(RADIO_EVENTS_END);
+    /* TIMER00 used only for ToF measurement */
+    NRF_TIMER10->PUBLISH_COMPARE[0] = DPPI_CH_PUB(TIMER0_EVENTS_COMPARE_0);
+    NRF_TIMER10->PUBLISH_COMPARE[3] = DPPI_CH_PUB(TIMER0_EVENTS_COMPARE_3);
+    NRF_TIMER10->SUBSCRIBE_CAPTURE[1] = DPPI_CH_SUB(RADIO_EVENTS_ADDRESS);
+    NRF_TIMER10->SUBSCRIBE_CAPTURE[2] = DPPI_CH_SUB(RADIO_EVENTS_END);
+
+    PPIB_RADIO_MCU_2(RADIO_EVENTS_PHYEND, DPPIC00_RADIO_EVENTS_PHYEND);
+    PPIB_RADIO_MCU_3(RTC0_EVENTS_COMPARE_0, DPPIC00_RTC0_EVENTS_COMPARE_0);
+    NRF_TIMER00->SUBSCRIBE_CAPTURE[4] = DPPI_CH_SUB(DPPIC00_RADIO_EVENTS_PHYEND);
 }
 
 void
