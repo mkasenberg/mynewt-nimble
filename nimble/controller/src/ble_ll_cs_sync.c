@@ -330,6 +330,7 @@ ble_ll_cs_sync_rx_isr_start(struct ble_mbuf_hdr *rxhdr, uint32_t aa)
 int
 ble_ll_cs_sync_rx_isr_end(uint8_t *rxbuf, struct ble_mbuf_hdr *rxhdr)
 {
+    struct ble_mbuf_hdr *ble_hdr;
     struct os_mbuf *rxpdu;
     struct ble_ll_cs_sm *cssm = g_ble_ll_cs_sm_current;
     uint32_t cputime;
@@ -368,6 +369,9 @@ ble_ll_cs_sync_rx_isr_end(uint8_t *rxbuf, struct ble_mbuf_hdr *rxhdr)
     cssm->anchor_usecs = end_anchor_usecs + cssm->step_transmission->end_tifs;
     ble_ll_cs_proc_schedule_next_tx_or_rx(cssm);
 
+    ble_hdr = BLE_MBUF_HDR_PTR(rxpdu);
+    ble_hdr->rxinfo.user_data = cssm;
+
     rxpdu = ble_ll_rxpdu_alloc(rxbuf[1] + BLE_LL_PDU_HDR_LEN);
     if (rxpdu) {
         ble_phy_rxpdu_copy(rxbuf, rxpdu);
@@ -390,6 +394,8 @@ ble_ll_cs_sync_rx_isr_end(uint8_t *rxbuf, struct ble_mbuf_hdr *rxhdr)
 void
 ble_ll_cs_sync_rx_pkt_in(struct os_mbuf *rxpdu, struct ble_mbuf_hdr *rxhdr)
 {
+    struct ble_ll_cs_sm *cssm = rxhdr->rxinfo.user_data;
+
     bs_trace_raw_time(0, "Received CS SYNC\n");
 }
 

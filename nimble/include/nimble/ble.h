@@ -84,7 +84,7 @@ struct ble_mbuf_hdr_rxinfo
 #if MYNEWT_VAL(BLE_LL_CFG_FEAT_LL_PRIVACY)
     int8_t  rpa_index;
 #endif
-#if MYNEWT_VAL(BLE_LL_CFG_FEAT_LL_EXT_ADV)
+#if MYNEWT_VAL(BLE_LL_CFG_FEAT_LL_EXT_ADV) || MYNEWT_VAL(BLE_LL_CHANNEL_SOUNDING)
     void *user_data;
 #endif
 };
