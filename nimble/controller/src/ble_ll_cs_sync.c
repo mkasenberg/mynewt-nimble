@@ -329,6 +329,7 @@ ble_ll_cs_sync_rx_isr_start(struct ble_mbuf_hdr *rxhdr, uint32_t aa)
 int
 ble_ll_cs_sync_rx_isr_end(uint8_t *rxbuf, struct ble_mbuf_hdr *rxhdr)
 {
+    struct os_mbuf *rxpdu;
     struct ble_ll_cs_sm *cssm = g_ble_ll_cs_sm_current;
     uint32_t cputime;
     uint32_t rem_us;
@@ -365,6 +366,14 @@ ble_ll_cs_sync_rx_isr_end(uint8_t *rxbuf, struct ble_mbuf_hdr *rxhdr)
 
     cssm->anchor_usecs = end_anchor_usecs + cssm->step_transmission->end_tifs;
     ble_ll_cs_proc_schedule_next_tx_or_rx(cssm);
+
+    rxpdu = ble_ll_rxpdu_alloc(rxbuf[1] + BLE_LL_PDU_HDR_LEN);
+    if (rxpdu) {
+        ble_phy_rxpdu_copy(rxbuf, rxpdu);
+
+        /* Send the packet to Link Layer context */
+        ble_ll_rx_pdu_in(rxpdu);
+    }
 
     return 1;
 }
