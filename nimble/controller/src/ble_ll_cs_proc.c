@@ -128,6 +128,96 @@ ble_ll_cs_generate_channel(struct ble_ll_cs_sm *cssm)
     return 0;
 }
 
+// CSChannelJump seq1StartCh seq2StartCh maxRepsAllowed saltRate
+static const uint8_t channel_selection_3c_parameter_block[][] = {
+    {1, 76, 1, 2}, {77, 0, 1, 2}, {78, 0, 2, 2}, {78, 0, 2, 2},
+    {76, 1, 3, 2}, {74, 1, 3, 2}, {76, 0, 3, 2}};
+
+static const uint8_t invalid_channel_map[] = {0, 1, 23, 24, 25, 77, 78};
+
+static uint8_t
+allowed_channel_index(uint8_t index) {
+    int i = 0;
+
+    for (i = 0; i < ARRAY_SIZE(invalid_channel_map); ++i) {
+        if (index == invalid_channel_map[i]) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+static int
+ble_ll_cs_chan_sel_generate_hat_shape_seq(struct ble_ll_cs_sm *cssm, uint8_t channel_jump,
+                                          uint8_t *shape_ch_seq_out)
+{
+    if (s1_ch < s2_ch) {
+        rising_ch = s1_ch;
+        falling_ch = s2_ch;
+    } else {
+        rising_ch = s2_ch;
+        falling_ch = s1_ch;
+    }
+
+    for (i = 0; i < ; ++i) {
+        if (allowed_channel_index(rising_ch)) {
+            shape_ch_seq_out[i] = rising_ch;
+        }
+
+        rising_ch += channel_jump;
+    }
+
+    for (; i < ; ++i) {
+        if (allowed_channel_index(falling_ch)) {
+            shape_ch_seq_out[i] = falling_ch;
+        }
+
+        falling_ch -= channel_jump;
+    }
+}
+
+static int
+ble_ll_cs_chan_sel_alg_3c(struct ble_ll_cs_sm *cssm, chape_selection,
+                          uint8_t channel_jump, num_repetitions)
+{
+    uint8_t i;
+    uint8_t offset;
+    uint8_t s1_ch;
+    uint8_t s2_ch;
+
+    BLE_LL_ASSERT(IN_RANGE(channel_jump, 2, 8));
+    i = channel_jump - 2;
+    seq1_start_ch = channel_selection_3c_parameter_block[i][0];
+    seq2_start_ch = channel_selection_3c_parameter_block[i][1];
+    max_reps_allowed = channel_selection_3c_parameter_block[i][2];
+    salt_rate = channel_selection_3c_parameter_block[i][3];
+
+    BLE_LL_ASSERT(IN_RANGE(num_repetitions, 1, max_reps_allowed));
+
+    /* Shape generation (GenShapeSequence) */
+    if (cssm->shape_iteration == 0) {
+        rc = ble_ll_cs_drbg_rand_hr1(&cssm->drbg_ctx, cssm->steps_in_procedure_count,
+                                     BLE_LL_CS_DRBG_HOP_CHAN_NON_MODE0, channel_jump,
+                                     &cssm->start_jitter);
+        if (rc) {
+            return rc;
+        }
+    }
+
+    offset = (n_shape_iteration + start_jitter) % channel_jump;
+    s1_ch = seq1_start_ch + offset;
+    s2_ch = seq2_start_ch + offset;
+
+    if (chape_selection == HAT_SHAPE) {
+
+    } else { /* chape_selection == X_SHAPE */
+
+    }
+
+    ++cssm->shape_iteration;
+}
+
 static int
 ble_ll_cs_backtracking_resistance(struct ble_ll_cs_sm *cssm)
 {
