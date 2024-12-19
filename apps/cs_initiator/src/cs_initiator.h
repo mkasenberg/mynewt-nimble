@@ -33,6 +33,9 @@ struct ble_hs_cfgble_hs_cfg;
 #define GATT_SVR_SVC_CHANNEL_SOUNDING_UUID 0xffff
 #define GATT_SVR_CHR_TOD_TOA_UUID          0xfffe
 
+#define MODLOG_MODULE_APP 123
+#define LOG(ml_lvl_, ...) MODLOG(ml_lvl_, MODLOG_MODULE_APP, __VA_ARGS__)
+
 /** Misc. */
 void print_bytes(const uint8_t *bytes, int len);
 void print_mbuf(const struct os_mbuf *om);

@@ -552,6 +552,55 @@ peer_dsc_find_uuid(const struct peer *peer, const ble_uuid_t *svc_uuid,
     return NULL;
 }
 
+static void
+peer_print_dsc(const struct peer_dsc *dsc)
+{
+    LOG(ERROR, "            dsc_handle=%d uuid=", dsc->dsc.handle);
+    print_uuid(&dsc->dsc.uuid.u);
+    LOG(ERROR, "\n");
+}
+
+static void
+peer_print_chr(const struct peer_chr *chr)
+{
+    struct peer_dsc *dsc;
+
+    LOG(ERROR, "        def_handle=%d val_handle=%d properties=0x%02x "
+        "uuid=", chr->chr.def_handle, chr->chr.val_handle,
+        chr->chr.properties);
+    print_uuid(&chr->chr.uuid.u);
+    LOG(ERROR, "\n");
+
+    SLIST_FOREACH(dsc, &chr->dscs, next) {
+        peer_print_dsc(dsc);
+    }
+}
+
+void
+peer_print_svc(const struct peer_svc *svc)
+{
+    struct peer_chr *chr;
+
+    LOG(ERROR, "    start=%d end=%d uuid=", svc->svc.start_handle,
+        svc->svc.end_handle);
+    print_uuid(&svc->svc.uuid.u);
+    LOG(ERROR, "\n");
+
+    SLIST_FOREACH(chr, &svc->chrs, next) {
+        peer_print_chr(chr);
+    }
+}
+
+void
+peer_print_discovered_svcs(const struct peer *peer)
+{
+    struct peer_svc *svc;
+
+    SLIST_FOREACH(svc, &peer->svcs, next) {
+        peer_print_svc(svc);
+    }
+}
+
 static int
 peer_svc_add(struct peer *peer, const struct ble_gatt_svc *gatt_svc)
 {

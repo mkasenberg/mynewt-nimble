@@ -48,10 +48,10 @@ cs_initiator_cs_event(struct ble_cs_event *event, void *arg)
     switch (event->type) {
     case BLE_CS_EVENT_CS_PROCEDURE_COMPLETE:
         tod_toa_i = event->procedure_complete.time_diff_ns;
-        MODLOG_DFLT(INFO, "Received ToD_ToA = %d\n", tod_toa_i);
+        LOG(INFO, "Received ToD_ToA = %d\n", tod_toa_i);
 
         if (toa_tod_r) {
-            MODLOG_DFLT(INFO, "ToF = %d\n", (tod_toa_i - toa_tod_r) / 2);
+            LOG(INFO, "ToF = %d\n", (tod_toa_i - toa_tod_r) / 2);
             tod_toa_i = 0;
             toa_tod_r = 0;
         }
@@ -72,8 +72,8 @@ cs_initiator_start_cs(uint16_t conn_handle)
     cmd.cb_arg = NULL;
     rc = ble_cs_initiator_procedure_start(&cmd);
     if (rc) {
-        MODLOG_DFLT(INFO, "Failed to read local supported CS capabilities,"
-                    "err %dt", rc);
+        LOG(INFO, "Failed to read local supported CS capabilities,"
+            "err %dt", rc);
     }
 }
 
@@ -83,8 +83,8 @@ cs_initiator_on_subscribe(uint16_t conn_handle,
                           struct ble_gatt_attr *attr,
                           void *arg)
 {
-    MODLOG_DFLT(INFO, "Subscribe complete; status=%d conn_handle=%d "
-                      "attr_handle=%d\n",
+    LOG(INFO, "Subscribe complete; status=%d conn_handle=%d "
+        "attr_handle=%d\n",
                 error->status, conn_handle, attr->handle);
 
     return 0;
@@ -102,7 +102,7 @@ cs_initiator_subscribe_tod_toa(const struct peer *peer)
                              BLE_UUID16_DECLARE(GATT_SVR_CHR_TOD_TOA_UUID),
                              BLE_UUID16_DECLARE(BLE_GATT_DSC_CLT_CFG_UUID16));
     if (dsc == NULL) {
-        MODLOG_DFLT(ERROR, "Error: Peer lacks a CCCD for ToD_ToA characteristic\n");
+        LOG(ERROR, "Error: Peer lacks a CCCD for ToD_ToA characteristic\n");
         goto err;
     }
 
@@ -111,8 +111,8 @@ cs_initiator_subscribe_tod_toa(const struct peer *peer)
     rc = ble_gattc_write_flat(peer->conn_handle, dsc->dsc.handle,
                               value, sizeof value, cs_initiator_on_subscribe, NULL);
     if (rc != 0) {
-        MODLOG_DFLT(ERROR, "Error: Failed to subscribe to characteristic; "
-                           "rc=%d\n", rc);
+        LOG(ERROR, "Error: Failed to subscribe to characteristic; "
+            "rc=%d\n", rc);
         goto err;
     }
 
@@ -123,6 +123,11 @@ err:
     ble_gap_terminate(peer->conn_handle, BLE_ERR_REM_USER_CONN_TERM);
 }
 
+extern void
+peer_print_discovered_svcs(const struct peer *peer);
+
+static volatile int hello = 1;
+
 /**
  * Called when service discovery of the specified peer has completed.
  */
@@ -132,8 +137,8 @@ cs_initiator_on_disc_complete(const struct peer *peer, int status, void *arg)
 
     if (status != 0) {
         /* Service discovery failed.  Terminate the connection. */
-        MODLOG_DFLT(ERROR, "Error: Service discovery failed; status=%d "
-                           "conn_handle=%d\n", status, peer->conn_handle);
+        LOG(ERROR, "Error: Service discovery failed; status=%d "
+            "conn_handle=%d\n", status, peer->conn_handle);
         ble_gap_terminate(peer->conn_handle, BLE_ERR_REM_USER_CONN_TERM);
         return;
     }
@@ -142,13 +147,23 @@ cs_initiator_on_disc_complete(const struct peer *peer, int status, void *arg)
      * list of services, characteristics, and descriptors that the peer
      * supports.
      */
-    MODLOG_DFLT(ERROR, "Service discovery complete; status=%d "
-                       "conn_handle=%d\n", status, peer->conn_handle);
+    LOG(ERROR, "Service discovery complete; status=%d "
+        "conn_handle=%d\n", status, peer->conn_handle);
+
+    LOG(ERROR, "Discovered svs:\n");
+    peer_print_discovered_svcs(peer);
 
     /* Now perform three concurrent GATT procedures against the peer: read,
      * write, and subscribe to notifications.
      */
-    cs_initiator_subscribe_tod_toa(peer);
+//    cs_initiator_subscribe_tod_toa(peer);
+
+// TODO remove this
+    if (!cs_started) {
+//        while (hello);
+        cs_started = true;
+        cs_initiator_start_cs(peer->conn_handle);
+    }
 }
 
 /**
@@ -164,7 +179,7 @@ cs_initiator_scan(void)
     /* Figure out address to use while advertising (no privacy for now) */
     rc = ble_hs_id_infer_auto(0, &own_addr_type);
     if (rc != 0) {
-        MODLOG_DFLT(ERROR, "error determining address type; rc=%d\n", rc);
+        LOG(ERROR, "error determining address type; rc=%d\n", rc);
         return;
     }
 
@@ -188,8 +203,7 @@ cs_initiator_scan(void)
     rc = ble_gap_disc(own_addr_type, BLE_HS_FOREVER, &disc_params,
                       cs_initiator_gap_event, NULL);
     if (rc != 0) {
-        MODLOG_DFLT(ERROR, "Error initiating GAP discovery procedure; rc=%d\n",
-                    rc);
+        LOG(ERROR, "Error initiating GAP discovery procedure; rc=%d\n", rc);
     }
 }
 
@@ -258,14 +272,14 @@ cs_initiator_connect_if_interesting(const struct ble_gap_disc_desc *disc)
     /* Scanning must be stopped before a connection can be initiated. */
     rc = ble_gap_disc_cancel();
     if (rc != 0) {
-        MODLOG_DFLT(DEBUG, "Failed to cancel scan; rc=%d\n", rc);
+        LOG(DEBUG, "Failed to cancel scan; rc=%d\n", rc);
         return;
     }
 
     /* Figure out address to use for connect (no privacy for now) */
     rc = ble_hs_id_infer_auto(0, &own_addr_type);
     if (rc != 0) {
-        MODLOG_DFLT(ERROR, "error determining address type; rc=%d\n", rc);
+        LOG(ERROR, "error determining address type; rc=%d\n", rc);
         return;
     }
 
@@ -275,8 +289,8 @@ cs_initiator_connect_if_interesting(const struct ble_gap_disc_desc *disc)
     rc = ble_gap_connect(own_addr_type, &disc->addr, 30000, &conn_params,
                          cs_initiator_gap_event, NULL);
     if (rc != 0) {
-        MODLOG_DFLT(ERROR, "Error: Failed to connect to device; addr_type=%d "
-                           "addr=%s\n; rc=%d",
+        LOG(ERROR, "Error: Failed to connect to device; addr_type=%d "
+            "addr=%s\n; rc=%d",
                     disc->addr.type, addr_str(disc->addr.val), rc);
         return;
     }
@@ -322,36 +336,36 @@ cs_initiator_gap_event(struct ble_gap_event *event, void *arg)
         /* A new connection was established or a connection attempt failed. */
         if (event->connect.status == 0) {
             /* Connection successfully established. */
-            MODLOG_DFLT(INFO, "Connection established ");
+            LOG(INFO, "Connection established ");
 
             rc = ble_gap_conn_find(event->connect.conn_handle, &desc);
             assert(rc == 0);
             print_conn_desc(&desc);
-            MODLOG_DFLT(INFO, "\n");
+            LOG(INFO, "\n");
 
             /* Remember peer. */
             rc = peer_add(event->connect.conn_handle);
             if (rc != 0) {
-                MODLOG_DFLT(ERROR, "Failed to add peer; rc=%d\n", rc);
+                LOG(ERROR, "Failed to add peer; rc=%d\n", rc);
                 return 0;
             }
 
             rc = ble_gap_security_initiate(event->connect.conn_handle);
             if (rc) {
-                MODLOG_DFLT(INFO, "Failed to pair");
+                LOG(INFO, "Failed to pair");
             }
 
             /* Perform service discovery. */
             rc = peer_disc_all(event->connect.conn_handle,
                                cs_initiator_on_disc_complete, NULL);
             if (rc != 0) {
-                MODLOG_DFLT(ERROR, "Failed to discover services; rc=%d\n", rc);
+                LOG(ERROR, "Failed to discover services; rc=%d\n", rc);
                 return 0;
             }
         } else {
             /* Connection attempt failed; resume scanning. */
-            MODLOG_DFLT(ERROR, "Error: Connection failed; status=%d\n",
-                        event->connect.status);
+            LOG(ERROR, "Error: Connection failed; status=%d\n",
+                event->connect.status);
             cs_initiator_scan();
         }
 
@@ -359,9 +373,9 @@ cs_initiator_gap_event(struct ble_gap_event *event, void *arg)
 
     case BLE_GAP_EVENT_DISCONNECT:
         /* Connection terminated. */
-        MODLOG_DFLT(INFO, "disconnect; reason=%d ", event->disconnect.reason);
+        LOG(INFO, "disconnect; reason=%d ", event->disconnect.reason);
         print_conn_desc(&event->disconnect.conn);
-        MODLOG_DFLT(INFO, "\n");
+        LOG(INFO, "\n");
 
         /* Forget about peer. */
         peer_delete(event->disconnect.conn.conn_handle);
@@ -371,22 +385,22 @@ cs_initiator_gap_event(struct ble_gap_event *event, void *arg)
         return 0;
 
     case BLE_GAP_EVENT_DISC_COMPLETE:
-        MODLOG_DFLT(INFO, "discovery complete; reason=%d\n",
-                    event->disc_complete.reason);
+        LOG(INFO, "discovery complete; reason=%d\n",
+            event->disc_complete.reason);
         return 0;
 
     case BLE_GAP_EVENT_PAIRING_COMPLETE:
-        MODLOG_DFLT(INFO, "received pairing complete: "
-                    "conn_handle=%d status=%d\n",
-                    event->pairing_complete.conn_handle,
-                    event->pairing_complete.status);
+        LOG(INFO, "received pairing complete: "
+            "conn_handle=%d status=%d\n",
+            event->pairing_complete.conn_handle,
+            event->pairing_complete.status);
 
         return 0;
 
     case BLE_GAP_EVENT_ENC_CHANGE:
         /* Encryption has been enabled or disabled for this connection. */
-        MODLOG_DFLT(INFO, "encryption change event; status=%d ",
-                    event->enc_change.status);
+        LOG(INFO, "encryption change event; status=%d ",
+            event->enc_change.status);
         rc = ble_gap_conn_find(event->enc_change.conn_handle, &desc);
         assert(rc == 0);
         print_conn_desc(&desc);
@@ -400,20 +414,20 @@ cs_initiator_gap_event(struct ble_gap_event *event, void *arg)
 
     case BLE_GAP_EVENT_NOTIFY_RX:
         /* Peer sent us a notification or indication. */
-        MODLOG_DFLT(INFO, "received %s; conn_handle=%d attr_handle=%d "
-                          "attr_len=%d\n",
-                    event->notify_rx.indication ?
-                        "indication" :
-                        "notification",
-                    event->notify_rx.conn_handle,
-                    event->notify_rx.attr_handle,
-                    OS_MBUF_PKTLEN(event->notify_rx.om));
+        LOG(INFO, "received %s; conn_handle=%d attr_handle=%d "
+            "attr_len=%d\n",
+            event->notify_rx.indication ?
+            "indication" :
+            "notification",
+            event->notify_rx.conn_handle,
+            event->notify_rx.attr_handle,
+            OS_MBUF_PKTLEN(event->notify_rx.om));
 
         toa_tod_r = get_le32(event->notify_rx.om->om_data);
-        MODLOG_DFLT(INFO, "Received ToA_ToD = %d\n", toa_tod_r);
+        LOG(INFO, "Received ToA_ToD = %d\n", toa_tod_r);
 
         if (tod_toa_i) {
-            MODLOG_DFLT(INFO, "ToF = %d\n", (tod_toa_i - toa_tod_r) / 2);
+            LOG(INFO, "ToF = %d\n", (tod_toa_i - toa_tod_r) / 2);
             tod_toa_i = 0;
             toa_tod_r = 0;
         }
@@ -422,10 +436,10 @@ cs_initiator_gap_event(struct ble_gap_event *event, void *arg)
         return 0;
 
     case BLE_GAP_EVENT_MTU:
-        MODLOG_DFLT(INFO, "mtu update event; conn_handle=%d cid=%d mtu=%d\n",
-                    event->mtu.conn_handle,
-                    event->mtu.channel_id,
-                    event->mtu.value);
+        LOG(INFO, "mtu update event; conn_handle=%d cid=%d mtu=%d\n",
+            event->mtu.conn_handle,
+            event->mtu.channel_id,
+            event->mtu.value);
         return 0;
 
     case BLE_GAP_EVENT_REPEAT_PAIRING:
@@ -452,7 +466,7 @@ cs_initiator_gap_event(struct ble_gap_event *event, void *arg)
 static void
 cs_initiator_on_reset(int reason)
 {
-    MODLOG_DFLT(ERROR, "Resetting state; reason=%d\n", reason);
+    LOG(ERROR, "Resetting state; reason=%d\n", reason);
 }
 
 static void
@@ -482,6 +496,12 @@ mynewt_main(int argc, char **argv)
 
     /* Initialize OS */
     sysinit();
+
+    rc = modlog_register(MODLOG_MODULE_APP, log_console_get(),
+                         LOG_LEVEL_DEBUG, NULL);
+    assert(rc == 0);
+
+    LOG(DEBUG, "Started CS Initiator\n");
 
     /* Configure the host. */
     ble_hs_cfg.reset_cb = cs_initiator_on_reset;
