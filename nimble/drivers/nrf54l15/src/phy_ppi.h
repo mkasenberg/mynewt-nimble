@@ -26,6 +26,7 @@
 #define DPPI_CH_MASK(_ch)       (1 << (DPPI_CH_ ## _ch))
 
 /* DPPIC00 [0:7] */
+//#define DPPI_CH_TIMER00_TASKS_CAPTURE_0        0
 
 /* DPPIC10 [0:23] */
 #define DPPI_CH_TIMER0_EVENTS_COMPARE_0         0
@@ -91,6 +92,30 @@ phy_ppi_timer0_compare0_to_radio_rxen_disable(void)
 {
     NRF_RADIO->SUBSCRIBE_RXEN = DPPI_CH_UNSUB(TIMER0_EVENTS_COMPARE_0);
 }
+
+//static inline void
+//phy_ppi_radio_address_to_timer3_start_enable(void)
+//{
+//    NRF_TIMER00->SUBSCRIBE_START = DPPI_CH_SUB(RADIO_EVENTS_ADDRESS);
+//}
+//
+//static inline void
+//phy_ppi_radio_address_to_timer3_start_disable(void)
+//{
+//    NRF_TIMER00->SUBSCRIBE_START = DPPI_CH_UNSUB(RADIO_EVENTS_ADDRESS);
+//}
+//
+//static inline void
+//phy_ppi_radio_address_to_timer3_capture0_enable(void)
+//{
+//    NRF_TIMER00->SUBSCRIBE_CAPTURE[0] = DPPI_CH_SUB(RADIO_EVENTS_ADDRESS);
+//}
+//
+//static inline void
+//phy_ppi_radio_address_to_timer3_capture0_disable(void)
+//{
+//    NRF_TIMER00->SUBSCRIBE_CAPTURE[0] = DPPI_CH_UNSUB(RADIO_EVENTS_ADDRESS);
+//}
 
 static inline void
 phy_ppi_radio_address_to_ccm_crypt_enable(void)
