@@ -381,11 +381,11 @@ ble_ll_cs_rx_security_req(struct ble_ll_conn_sm *connsm, uint8_t *dptr,
     uint8_t *in = connsm->cssm->drbg_ctx.in;
     uint8_t *pv = connsm->cssm->drbg_ctx.pv;
 
-    if (!connsm->flags.encrypted) {
-        ble_ll_ctrl_rej_ext_ind_make(BLE_LL_CTRL_CS_SEC_REQ,
-                                     BLE_ERR_INSUFFICIENT_SEC, rspbuf);
-        return BLE_LL_CTRL_REJECT_IND_EXT;
-    }
+//    if (!connsm->flags.encrypted) {
+//        ble_ll_ctrl_rej_ext_ind_make(BLE_LL_CTRL_CS_SEC_REQ,
+//                                     BLE_ERR_INSUFFICIENT_SEC, rspbuf);
+//        return BLE_LL_CTRL_REJECT_IND_EXT;
+//    }
 
     /* Vectors concatenation is done in the follwing manner:
      * CS_IV = CS_IV_P || CS_IV_C
@@ -500,9 +500,9 @@ ble_ll_cs_hci_sec_enable(const uint8_t *cmdbuf, uint8_t cmdlen)
         return BLE_ERR_UNK_CONN_ID;
     }
 
-    if (!connsm->flags.encrypted) {
-        return BLE_ERR_INSUFFICIENT_SEC;
-    }
+//    if (!connsm->flags.encrypted) {
+//        return BLE_ERR_INSUFFICIENT_SEC;
+//    }
 
     ble_ll_ctrl_proc_start(connsm, BLE_LL_CTRL_PROC_CS_SEC_START, NULL);
 

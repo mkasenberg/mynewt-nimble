@@ -151,7 +151,9 @@ cs_initiator_on_disc_complete(const struct peer *peer, int status, void *arg)
     /* Now perform three concurrent GATT procedures against the peer: read,
      * write, and subscribe to notifications.
      */
-    cs_initiator_subscribe_tod_toa(peer);
+//    cs_initiator_subscribe_tod_toa(peer);
+
+    cs_initiator_start_cs(peer->conn_handle);
 }
 
 /**
@@ -338,10 +340,10 @@ cs_initiator_gap_event(struct ble_gap_event *event, void *arg)
                 return 0;
             }
 
-            rc = ble_gap_security_initiate(event->connect.conn_handle);
-            if (rc) {
-                LOG(INFO, "Failed to pair");
-            }
+//            rc = ble_gap_security_initiate(event->connect.conn_handle);
+//            if (rc) {
+//                LOG(INFO, "Failed to pair");
+//            }
 
             /* Perform service discovery. */
             rc = peer_disc_all(event->connect.conn_handle,
@@ -393,10 +395,10 @@ cs_initiator_gap_event(struct ble_gap_event *event, void *arg)
         assert(rc == 0);
         print_conn_desc(&desc);
 
-        if (!cs_started) {
-            cs_started = true;
-            cs_initiator_start_cs(event->connect.conn_handle);
-        }
+//        if (!cs_started) {
+//            cs_started = true;
+//            cs_initiator_start_cs(event->connect.conn_handle);
+//        }
 
         return 0;
 
