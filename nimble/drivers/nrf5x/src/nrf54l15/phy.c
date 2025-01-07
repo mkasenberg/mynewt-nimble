@@ -86,6 +86,15 @@ phy_debug_init(void)
 }
 #endif /* PHY_USE_DEBUG */
 
+#if MYNEWT_VAL(BLE_CHANNEL_SOUNDING)
+static void
+phy_cs_init(void)
+{
+//    PPIB_RADIO_MCU_0(RADIO_EVENTS_ADDRESS, TIMER00_TASKS_CAPTURE_0);
+//    NRF_TIMER00->SUBSCRIBE_CAPTURE[0] = DPPI_CH_SUB(TIMER00_TASKS_CAPTURE_0);
+}
+#endif
+
 void
 phy_ppi_init(void)
 {
