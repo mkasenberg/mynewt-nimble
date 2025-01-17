@@ -39,6 +39,7 @@
 #define DPPI_CH_RADIO_EVENTS_DISABLED           7
 #define DPPI_CH_RADIO_EVENTS_READY              8
 #define DPPI_CH_RADIO_EVENTS_RXREADY            9
+#define DPPI_CH_RADIO_EVENTS_PHYEND             10
 
 /* DPPIC20 [0:15] */
 #define DPPI_CH_GPIOTE20_TASKS_SET_0            0

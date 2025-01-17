@@ -48,10 +48,10 @@ cs_initiator_cs_event(struct ble_cs_event *event, void *arg)
     switch (event->type) {
     case BLE_CS_EVENT_CS_PROCEDURE_COMPLETE:
         tod_toa_i = event->procedure_complete.time_diff_ns;
-        LOG(INFO, "Received ToD_ToA = %d\n", tod_toa_i);
+        LOG(INFO, "Received ToD_ToA = %d[ns]\n", tod_toa_i);
 
         if (toa_tod_r) {
-            LOG(INFO, "ToF = %d\n", (tod_toa_i - toa_tod_r) / 2);
+            LOG(INFO, "ToF = %d[ns]\n", (tod_toa_i - toa_tod_r) / 2);
             tod_toa_i = 0;
             toa_tod_r = 0;
         }
@@ -414,10 +414,10 @@ cs_initiator_gap_event(struct ble_gap_event *event, void *arg)
             OS_MBUF_PKTLEN(event->notify_rx.om));
 
         toa_tod_r = get_le32(event->notify_rx.om->om_data);
-        LOG(INFO, "Received ToA_ToD = %d\n", toa_tod_r);
+        LOG(INFO, "Received ToA_ToD = %d[ns]\n", toa_tod_r);
 
         if (tod_toa_i) {
-            LOG(INFO, "ToF = %d\n", (tod_toa_i - toa_tod_r) / 2);
+            LOG(INFO, "ToF = %d[ns]\n", (tod_toa_i - toa_tod_r) / 2);
             tod_toa_i = 0;
             toa_tod_r = 0;
         }

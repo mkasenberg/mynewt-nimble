@@ -63,13 +63,6 @@ struct ble_ll_cs_sm *g_ble_ll_cs_sm_current;
 #define T_FM (80)
 
 #define TIME_DIFF_NOT_AVAILABLE  (0x00008000)
-#if BABBLESIM
-/* units of 0.5 nanoseconds */
-/* TODO: Hardcorded for 16MHz timer, should be configurable. */
-#define GET_TIME_DIFF(_diff_ticks, _center_delta_us) (_diff_ticks * 125 - _center_delta_us * 2000);
-#else
-#define GET_TIME_DIFF(_diff_ticks, _center_delta_us) (_diff_ticks * 7.8 - _center_delta_us * 2000);
-#endif
 
 #define SUBEVENT_DONE_STATUS_COMPLETED (0x0)
 #define SUBEVENT_DONE_STATUS_PARTIAL   (0x1)
@@ -344,6 +337,56 @@ ble_ll_cs_proc_queue_subevent(struct ble_ll_cs_subevent *subevent,
     return 0;
 }
 
+static uint32_t
+ble_ll_cs_proc_get_time_diff(struct ble_ll_cs_sm *cssm)
+{
+    struct ble_ll_cs_step_result *result = &cssm->step_result;
+    uint32_t arrival_us = result->time_of_arrival_us;
+    uint32_t departure_us = result->time_of_departure_us;
+    uint32_t arrival_ns = result->time_of_arrival_ns;
+    uint32_t departure_ns = result->time_of_departure_ns;
+    uint32_t time_diff_us;
+    uint32_t time_diff_ns;
+    uint32_t time_diff;
+    uint32_t nominal_offset_us;
+    bool invalid_time;
+    uint8_t role = cssm->active_config->role;
+
+    if (cssm->step_mode == BLE_LL_CS_MODE1) {
+        nominal_offset_us = cssm->t_sy + cssm->t_sy_seq + T_RD + cssm->active_config->t_ip1;
+    } else if (cssm->step_mode == BLE_LL_CS_MODE3) {
+        /* TODO */
+        nominal_offset_us = cssm->t_sy + cssm->t_sy_seq + T_RD + cssm->active_config->t_ip2;
+    } else {
+        return TIME_DIFF_NOT_AVAILABLE;
+    }
+
+    invalid_time = (role == BLE_LL_CS_ROLE_INITIATOR)
+        ? (arrival_us < departure_us || (arrival_us == departure_us && arrival_ns <= departure_ns))
+        : (arrival_us > departure_us || (arrival_us == departure_us && arrival_ns >= departure_ns));
+
+    if (invalid_time) {
+        return TIME_DIFF_NOT_AVAILABLE;
+    }
+
+    time_diff_us = (role == BLE_LL_CS_ROLE_INITIATOR)
+        ? arrival_us - departure_us
+        : departure_us - arrival_us;
+
+    /* The nominal offsets have to be subtructed (i.e., the interlude time
+     * between packets and the length of the packet itself)
+     */
+    if (time_diff_us < nominal_offset_us) {
+        return TIME_DIFF_NOT_AVAILABLE;
+    }
+
+    time_diff_ns = (time_diff_us - nominal_offset_us) * 1000 +
+        ((role == BLE_LL_CS_ROLE_INITIATOR) ? arrival_ns - departure_ns : departure_ns - arrival_ns);
+
+    time_diff = time_diff_ns * 2;
+    return (time_diff > 0x7FFF) ? TIME_DIFF_NOT_AVAILABLE : time_diff;
+}
+
 static void
 ble_ll_cs_proc_add_step_result(struct ble_ll_cs_sm *cssm)
 {
@@ -354,8 +397,7 @@ ble_ll_cs_proc_add_step_result(struct ble_ll_cs_sm *cssm)
     struct cs_steps_data *step_data;
     uint8_t *data;
     int32_t t_sy_center_delta_us = 0;
-    int32_t time_diff_ticks;
-    int32_t time_diff = TIME_DIFF_NOT_AVAILABLE;
+    uint32_t time_diff;
     uint8_t t_ip1 = conf->t_ip1;
     uint8_t t_ip2 = conf->t_ip2;
     uint8_t t_sw = cssm->t_sw;
@@ -418,24 +460,11 @@ ble_ll_cs_proc_add_step_result(struct ble_ll_cs_sm *cssm)
     step_data->channel = cssm->channel;
     data = step_data->data;
 
-    if (cssm->step_mode == BLE_LL_CS_MODE1 || cssm->step_mode == BLE_LL_CS_MODE3) {
-        if (role == BLE_LL_CS_ROLE_INITIATOR) {
-            if (result->time_of_arrival > result->time_of_departure) {
-                time_diff_ticks = result->time_of_arrival - result->time_of_departure;
-                time_diff = GET_TIME_DIFF(time_diff_ticks, t_sy_center_delta_us);
-            }
-        } else { /* BLE_LL_CS_ROLE_REFLECTOR */
-            if (result->time_of_arrival < result->time_of_departure) {
-                time_diff_ticks = result->time_of_departure - result->time_of_arrival;
-                time_diff = GET_TIME_DIFF(time_diff_ticks, t_sy_center_delta_us);
-            }
-        }
+    /* Get ToA_ToD_Initiator/ToD_ToA_Reflector */
+    time_diff = ble_ll_cs_proc_get_time_diff(cssm);
+    (void)t_sy_center_delta_us; //TODO
 
-        if (time_diff != TIME_DIFF_NOT_AVAILABLE && (time_diff < -0x7FFF || 0x7FFF < time_diff)) {
-            time_diff = TIME_DIFF_NOT_AVAILABLE;
-        }
-    }
-
+    /* Pack the step results into the buffered hci event */
     if (cssm->step_mode == BLE_LL_CS_MODE0) {
         data[0] = result->packet_quality;
         data[1] = result->packet_rssi;
@@ -1298,18 +1327,17 @@ ble_ll_cs_proc_schedule_next_tx_or_rx(struct ble_ll_cs_sm *cssm)
 
     if (cssm->anchor_cputime - g_ble_ll_sched_offset_ticks > ble_ll_tmr_get()) {
         cssm->sch.start_time = cssm->anchor_cputime - g_ble_ll_sched_offset_ticks;
+        cssm->sched_cb = cb;
+        cssm->sch.end_time = cssm->sch.start_time + ble_ll_tmr_u2t_up(cssm->duration_usecs);
+        cssm->sch.remainder = 0;
+        cssm->sch.sched_type = BLE_LL_SCHED_TYPE_CS;
+        cssm->sch.cb_arg = cssm;
+        cssm->sch.sched_cb = ble_ll_cs_proc_sched_cb;
+        rc = ble_ll_sched_cs_proc(&cssm->sch);
     } else {
         cssm->sch.start_time = ble_ll_tmr_get();
+        rc = cb(cssm);
     }
-
-    cssm->sched_cb = cb;
-    cssm->sch.end_time = cssm->sch.start_time + ble_ll_tmr_u2t_up(cssm->duration_usecs);
-    cssm->sch.remainder = 0;
-    cssm->sch.sched_type = BLE_LL_SCHED_TYPE_CS;
-    cssm->sch.cb_arg = cssm;
-    cssm->sch.sched_cb = ble_ll_cs_proc_sched_cb;
-
-    rc = ble_ll_sched_cs_proc(&cssm->sch);
 
     return rc;
 }

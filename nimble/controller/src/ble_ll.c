@@ -1186,6 +1186,13 @@ ble_ll_rx_end(uint8_t *rxbuf, struct ble_mbuf_hdr *rxhdr)
     uint8_t crcok;
     struct os_mbuf *rxpdu;
 
+#if MYNEWT_VAL(BLE_LL_CHANNEL_SOUNDING)
+    if (BLE_MBUF_HDR_RX_STATE(rxhdr) == BLE_LL_STATE_CS) {
+        rc = ble_ll_cs_sync_rx_isr_end(rxbuf, rxhdr);
+        return rc;
+    }
+#endif
+
     /* Get CRC status from BLE header */
     crcok = BLE_MBUF_HDR_CRC_OK(rxhdr);
 
@@ -1220,13 +1227,6 @@ ble_ll_rx_end(uint8_t *rxbuf, struct ble_mbuf_hdr *rxhdr)
 #if MYNEWT_VAL(BLE_LL_CFG_FEAT_LL_PERIODIC_ADV) && MYNEWT_VAL(BLE_LL_ROLE_OBSERVER)
     if (BLE_MBUF_HDR_RX_STATE(rxhdr) == BLE_LL_STATE_SYNC) {
         rc = ble_ll_sync_rx_isr_end(rxbuf, rxhdr);
-        return rc;
-    }
-#endif
-
-#if MYNEWT_VAL(BLE_LL_CHANNEL_SOUNDING)
-    if (BLE_MBUF_HDR_RX_STATE(rxhdr) == BLE_LL_STATE_CS) {
-        rc = ble_ll_cs_sync_rx_isr_end(rxbuf, rxhdr);
         return rc;
     }
 #endif

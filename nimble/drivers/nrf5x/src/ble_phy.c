@@ -181,11 +181,11 @@ struct ble_phy_obj
 
     uint16_t txtx_time_us;
     uint8_t txtx_time_anchor;
-    uint8_t phy_cs_timer;
-    uint32_t txend_time_us;
-    uint32_t txend_time_ns;
-    uint32_t rxend_time_us;
-    uint32_t rxend_time_ns;
+#if MYNEWT_VAL(BLE_CHANNEL_SOUNDING)
+    uint32_t txend_time_ticks;
+    uint32_t rxend_time_ticks;
+    uint32_t timer_ticks_per_us;
+#endif
 };
 static struct ble_phy_obj g_ble_phy_data;
 
@@ -321,6 +321,14 @@ STATS_NAME_START(ble_phy_stats)
     STATS_NAME(ble_phy_stats, rx_hw_err)
     STATS_NAME(ble_phy_stats, tx_hw_err)
 STATS_NAME_END(ble_phy_stats)
+
+#if MYNEWT_VAL(BLE_CHANNEL_SOUNDING)
+#define RADIO_TIMER_US_TO_TICKS(us) (g_ble_phy_data.timer_ticks_per_us > 1 ? us * g_ble_phy_data.timer_ticks_per_us : us)
+#define RADIO_TIMER_TICKS_TO_US(ticks) (g_ble_phy_data.timer_ticks_per_us > 1 ? ticks / g_ble_phy_data.timer_ticks_per_us : ticks)
+#else
+#define RADIO_TIMER_US_TO_TICKS(us) (us)
+#define RADIO_TIMER_TICKS_TO_US(us) (us)
+#endif
 
 /*
  * NOTE:
@@ -735,7 +743,7 @@ ble_phy_set_start_time(uint32_t cputime, uint8_t rem_us, bool tx)
 
     /* Clear and set TIMER0 to fire off at proper time */
     nrf_timer_task_trigger(NRF_TIMER0, NRF_TIMER_TASK_CLEAR);
-    nrf_timer_cc_set(NRF_TIMER0, 0, radio_rem_us + rem_us_corr);
+    nrf_timer_cc_set(NRF_TIMER0, 0, RADIO_TIMER_US_TO_TICKS(radio_rem_us + rem_us_corr));
     NRF_TIMER0->EVENTS_COMPARE[0] = 0;
 #if PHY_USE_FEM
     if (fem_rem_us) {
@@ -1137,14 +1145,10 @@ ble_phy_tx_end_isr(void)
 #endif
     transition = g_ble_phy_data.phy_transition;
 
-    if (g_ble_phy_data.phy_cs_timer == BLE_PHY_CS_TIMER_START) {
-        phy_ppi_radio_address_to_timer3_start_disable();
-    } else if (g_ble_phy_data.phy_cs_timer == BLE_PHY_CS_TIMER_CAPTURE) {
-        phy_ppi_radio_address_to_timer3_capture0_disable();
-    }
-
 #if MYNEWT_VAL(BLE_CHANNEL_SOUNDING)
-    g_ble_phy_data.txend_time_us = NRF_TIMER0->CC[2] + g_ble_phy_t_txenddelay[tx_phy_mode];
+    if (ble_ll_state_get() == BLE_LL_STATE_CS) {
+        g_ble_phy_data.txend_time_ticks = NRF_TIMER0->CC[4];
+    }
 #endif
 
     if (g_ble_phy_data.txend_cb) {
@@ -1161,8 +1165,9 @@ ble_phy_tx_end_isr(void)
 
         ble_phy_wfr_enable(BLE_PHY_WFR_ENABLE_TXRX, tx_phy_mode, 0);
 
+        rx_time = RADIO_TIMER_TICKS_TO_US(NRF_TIMER0->CC[2]);
         /* Schedule RX exactly T_IFS after TX end captured in CC[2] */
-        rx_time = NRF_TIMER0->CC[2] + tifs;
+        rx_time += tifs;
         /* Adjust for delay between EVENT_END and actual TX end time */
         rx_time += g_ble_phy_t_txenddelay[tx_phy_mode];
         /* Start listening a bit earlier due to allowed active clock accuracy */
@@ -1176,7 +1181,7 @@ ble_phy_tx_end_isr(void)
 #endif
 
         radio_time = rx_time - BLE_PHY_T_RXENFAST;
-        nrf_timer_cc_set(NRF_TIMER0, 0, radio_time);
+        nrf_timer_cc_set(NRF_TIMER0, 0, RADIO_TIMER_US_TO_TICKS(radio_time));
         NRF_TIMER0->EVENTS_COMPARE[0] = 0;
         phy_ppi_timer0_compare0_to_radio_rxen_enable();
 
@@ -1192,14 +1197,14 @@ ble_phy_tx_end_isr(void)
             /* Calculate TX anchor relative to current TX end */
 
             /* TX end timestamp is captured in CC[2] */
-            tx_time = NRF_TIMER0->CC[2];
+            tx_time = RADIO_TIMER_TICKS_TO_US(NRF_TIMER0->CC[2]);
             /* Adjust for delay between EVENT_END and actual TX end time */
             tx_time += g_ble_phy_t_txenddelay[tx_phy_mode];
         } else {
             /* Calculate TX anchor relative to current TX start */
 
             /* AA timestamp is captured in CC[1] */
-            tx_time = NRF_TIMER0->CC[1];
+            tx_time = RADIO_TIMER_TICKS_TO_US(NRF_TIMER0->CC[1]);
             /* Adjust for delay between EVENT_ADDRESS and actual AA time ota */
             tx_time += g_ble_phy_t_txaddrdelay[tx_phy_mode];
             /* Adjust by sync word length to get TX start time */
@@ -1216,7 +1221,7 @@ ble_phy_tx_end_isr(void)
         tx_time -= g_ble_phy_t_txdelay[g_ble_phy_data.phy_cur_phy_mode];
 
         radio_time = tx_time - BLE_PHY_T_TXENFAST;
-        nrf_timer_cc_set(NRF_TIMER0, 0, radio_time);
+        nrf_timer_cc_set(NRF_TIMER0, 0, RADIO_TIMER_US_TO_TICKS(radio_time));
         NRF_TIMER0->EVENTS_COMPARE[0] = 0;
         phy_ppi_timer0_compare0_to_radio_txen_enable();
 
@@ -1302,7 +1307,9 @@ ble_phy_rx_end_isr(void)
 
     /* Count PHY crc errors and valid packets */
     crcok = NRF_RADIO->EVENTS_CRCOK;
-    if (!crcok) {
+    if ((NRF_RADIO->CRCCNF & RADIO_CRCCNF_LEN_Msk) == 0) {
+        /* CRC disabled */
+    } else if (!crcok) {
         STATS_INC(ble_phy_stats, rx_crc_err);
     } else {
         STATS_INC(ble_phy_stats, rx_valid);
@@ -1345,10 +1352,6 @@ ble_phy_rx_end_isr(void)
     ble_phy_mode_apply(g_ble_phy_data.phy_tx_phy_mode);
 #endif
 
-#if MYNEWT_VAL(BLE_CHANNEL_SOUNDING)
-    g_ble_phy_data.rxend_time_us = NRF_TIMER0->CC[2] - g_ble_phy_t_rxenddelay[ble_hdr->rxinfo.phy_mode];
-#endif
-
     /*
      * Let's schedule TX now and we will just cancel it after processing RXed
      * packet if we don't need TX.
@@ -1370,8 +1373,12 @@ ble_phy_rx_end_isr(void)
     tifs = BLE_LL_IFS;
 #endif
 
+#if MYNEWT_VAL(BLE_CHANNEL_SOUNDING)
+    g_ble_phy_data.rxend_time_ticks = NRF_TIMER0->CC[4];
+#endif
+
     /* Schedule TX exactly T_IFS after RX end captured in CC[2] */
-    tx_time = NRF_TIMER0->CC[2] + tifs;
+    tx_time = RADIO_TIMER_TICKS_TO_US(NRF_TIMER0->CC[2]) + tifs;
     /* Adjust for delay between actual RX end time and EVENT_END */
     tx_time -= g_ble_phy_t_rxenddelay[ble_hdr->rxinfo.phy_mode];
 
@@ -1383,7 +1390,7 @@ ble_phy_rx_end_isr(void)
     tx_time -= g_ble_phy_t_txdelay[g_ble_phy_data.phy_cur_phy_mode];
 
     radio_time = tx_time - BLE_PHY_T_TXENFAST;
-    nrf_timer_cc_set(NRF_TIMER0, 0, radio_time);
+    nrf_timer_cc_set(NRF_TIMER0, 0, RADIO_TIMER_US_TO_TICKS(radio_time));
     NRF_TIMER0->EVENTS_COMPARE[0] = 0;
     phy_ppi_timer0_compare0_to_radio_txen_enable();
 
@@ -1466,7 +1473,7 @@ ble_phy_rx_start_isr(void)
      */
     ble_hdr->beg_cputime = g_ble_phy_data.phy_start_cputime;
 
-    usecs = NRF_TIMER0->CC[1];
+    usecs = RADIO_TIMER_TICKS_TO_US(NRF_TIMER0->CC[1]);
     pdu_usecs = ble_phy_mode_pdu_start_off(ble_hdr->rxinfo.phy_mode) +
                 g_ble_phy_t_rxaddrdelay[ble_hdr->rxinfo.phy_mode];
     if (usecs < pdu_usecs) {
@@ -1535,12 +1542,6 @@ ble_phy_rx_start_isr(void)
             BLE_DEV_ADDR_LEN) * 8 + g_ble_phy_data.phy_bcc_offset);
     }
 #endif
-
-    if (g_ble_phy_data.phy_cs_timer == BLE_PHY_CS_TIMER_START) {
-        phy_ppi_radio_address_to_timer3_start_disable();
-    } else if (g_ble_phy_data.phy_cs_timer == BLE_PHY_CS_TIMER_CAPTURE) {
-        phy_ppi_radio_address_to_timer3_capture0_disable();
-    }
 
     /* Call Link Layer receive start function */
     rc = ble_ll_rx_start(dptr + 3,
@@ -1790,6 +1791,9 @@ ble_phy_init(void)
 #else
     NRF_TIMER0->PRESCALER = 4;  /* gives us 1 MHz */
 #endif
+#if MYNEWT_VAL(BLE_CHANNEL_SOUNDING)
+    g_ble_phy_data.timer_ticks_per_us = 1;
+#endif
 
     phy_ppi_init();
 
@@ -2008,6 +2012,13 @@ ble_phy_rx_set_start_time(uint32_t cputime, uint8_t rem_usecs)
 
     if (ble_phy_set_start_time(cputime, rem_usecs, false) != 0) {
         STATS_INC(ble_phy_stats, rx_late);
+
+#if MYNEWT_VAL(BLE_CHANNEL_SOUNDING)
+        if (ble_ll_state_get() == BLE_LL_STATE_CS) {
+            /* We cannot be late to receive CS_SYNC */
+            return BLE_PHY_ERR_RX_LATE;
+        }
+#endif
 
         /* We're late so let's just try to start RX as soon as possible */
         ble_phy_set_start_now();
@@ -2523,42 +2534,49 @@ ble_phy_tifs_txtx_set(uint16_t usecs, uint8_t anchor)
     g_ble_phy_data.txtx_time_anchor = anchor;
 }
 
+#if MYNEWT_VAL(BLE_CHANNEL_SOUNDING)
 void
 ble_phy_get_txend_time(uint32_t *cputime, uint32_t *rem_us, uint32_t *rem_ns)
 {
     *cputime = g_ble_phy_data.phy_start_cputime;
-    *rem_us = g_ble_phy_data.txend_time_us;
-    *rem_ns = g_ble_phy_data.txend_time_ns;
+    *rem_us = RADIO_TIMER_TICKS_TO_US(g_ble_phy_data.txend_time_ticks);
+    *rem_ns = (g_ble_phy_data.txend_time_ticks - RADIO_TIMER_US_TO_TICKS(*rem_us)) *
+              (1000 / g_ble_phy_data.timer_ticks_per_us);
 }
 
 void
 ble_phy_get_rxend_time(uint32_t *cputime, uint32_t *rem_us, uint32_t *rem_ns)
 {
     *cputime = g_ble_phy_data.phy_start_cputime;
-    *rem_us = g_ble_phy_data.rxend_time_us;
-    *rem_ns = g_ble_phy_data.rxend_time_ns;
-}
-
-uint32_t
-ble_phy_cs_timer_read(void)
-{
-    return NRF_TIMER0->CC[0];
+    *rem_us = RADIO_TIMER_TICKS_TO_US(g_ble_phy_data.rxend_time_ticks);
+    *rem_ns = (g_ble_phy_data.rxend_time_ticks - RADIO_TIMER_US_TO_TICKS(*rem_us)) *
+              (1000 / g_ble_phy_data.timer_ticks_per_us);
 }
 
 void
 ble_phy_cs_sync_mode_set(uint8_t mode)
 {
-#if !BABBLESIM
     if (mode == 0) {
+#if !BABBLESIM
         /* Configure back the registers */
         NRF_RADIO->CRCCNF = (RADIO_CRCCNF_SKIPADDR_Skip << RADIO_CRCCNF_SKIPADDR_Pos) | RADIO_CRCCNF_LEN_Three;
         NRF_RADIO->PCNF0 = NRF_PCNF0;
-    } else {
-        /* CS SYNC packet has no PDU or CRC */
-        NRF_RADIO->CRCCNF = 0;
-        NRF_RADIO->PCNF0 = NRF_LFLEN_BITS << RADIO_PCNF0_LFLEN_Pos;
-    }
+        NRF_RADIO->PCNF1 |= RADIO_PCNF1_WHITEEN_Msk;
+        NRF_TIMER0->PRESCALER = 5;  /* gives us 1 MHz */
 #endif
+        g_ble_phy_data.timer_ticks_per_us = 1;
+    } else {
+#if !BABBLESIM
+        /* CS SYNC packet has no PDU or CRC */
+        NRF_RADIO->CRCCNF = RADIO_CRCCNF_SKIPADDR_Skip << RADIO_CRCCNF_SKIPADDR_Pos;
+        /* CS_SYNC needs only PAYLOAD field, so do not trasmit S0, LENGTH and S1 fields. */
+        NRF_RADIO->PCNF0 = RADIO_PCNF0_S1INCL_Include << RADIO_PCNF0_S1INCL_Pos;
+        /* Disable whitening */
+        NRF_RADIO->PCNF1 &= ~RADIO_PCNF1_WHITEEN_Msk;
+        NRF_TIMER0->PRESCALER = 0;  /* gives us 128 MHz */
+#endif
+        g_ble_phy_data.timer_ticks_per_us = 128;
+    }
 }
 
 int
@@ -2576,23 +2594,30 @@ ble_phy_tx_cs_sync(ble_phy_tx_cs_sync_cb_t pktcb, void *pktcb_arg)
 }
 
 int
-ble_phy_cs_sync_configure(uint8_t chan, uint32_t access_addr, uint8_t cs_timer)
+ble_phy_cs_sync_configure(uint8_t chan, uint32_t access_addr)
 {
-    int rc;
-
+#if BABBLESIM
     ble_phy_setchan(chan, access_addr, 0);
+#else
+    assert(!(chan <= 1 || (23 <= chan && chan <= 25) || 77 <= chan));
 
-    if (cs_timer == BLE_PHY_CS_TIMER_START) {
-        /* Measure time between ADDRESS events of TX and RX CS_SYNCs */
-        nrf_timer_task_trigger(NRF_TIMER0, NRF_TIMER_TASK_CLEAR);
-        phy_ppi_radio_address_to_timer3_start_enable();
-    } else if (cs_timer == BLE_PHY_CS_TIMER_CAPTURE) {
-        /* Prepare to catch the time of ADDRESS event of TX CS_SYNC. */
-        nrf_timer_cc_set(NRF_TIMER0, 0, 0);
-        phy_ppi_radio_address_to_timer3_capture0_enable();
+    /* Check for valid channel range */
+    if (chan <= 1 || (23 <= chan && chan <= 25) || 77 <= chan) {
+        return BLE_PHY_ERR_INV_PARAM;
     }
 
-    g_ble_phy_data.phy_cs_timer = cs_timer;
+    /* Set current access address */
+    ble_phy_set_access_addr(access_addr);
+
+    /* Configure crcinit */
+    NRF_RADIO->CRCINIT = 0;
+
+    /* Set the frequency and the data whitening initial value */
+    g_ble_phy_data.phy_chan = chan;
+    NRF_RADIO->FREQUENCY = 2 + chan;
+    NRF_RADIO->DATAWHITE = RADIO_DATAWHITE_ResetValue | chan;
+#endif
 
     return 0;
 }
+#endif

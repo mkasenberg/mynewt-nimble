@@ -198,8 +198,10 @@ struct ble_ll_cs_step_result {
     uint8_t packet_rssi;
     uint8_t packet_quality;
     uint8_t packet_nadm;
-    uint32_t time_of_departure;
-    uint32_t time_of_arrival;
+    uint32_t time_of_departure_us;
+    uint32_t time_of_departure_ns;
+    uint32_t time_of_arrival_us;
+    uint32_t time_of_arrival_ns;
     uint32_t packet_pct1;
     uint32_t packet_pct2;
     uint16_t measured_freq_offset;
