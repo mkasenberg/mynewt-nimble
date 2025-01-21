@@ -254,7 +254,7 @@ struct ble_ll_cs_sm {
     uint32_t duration_usecs;
     uint32_t anchor_usecs;
     ble_ll_cs_sched_cb_func sched_cb;
-    uint32_t anchor_cputime;
+    uint8_t phy_transition;
     uint8_t anchor_rem_usecs;
     uint8_t rx_window_offset_usecs;
 
@@ -310,7 +310,7 @@ struct ble_ll_cs_sm {
     uint32_t rx_aa;
     /* PHY channel */
     uint8_t channel;
-    /* Cached main mode channels that will be used in repetiton steps */
+    /* Cached main mode channels that will be used in repetition steps */
     uint8_t repetition_channels[3];
     uint8_t cs_sync_antenna;
 

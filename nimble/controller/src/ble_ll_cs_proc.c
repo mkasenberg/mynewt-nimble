@@ -629,6 +629,15 @@ ble_ll_cs_proc_calculate_timing(struct ble_ll_cs_sm *cssm)
 
     cssm->procedure_interval_usecs = params->procedure_interval * cssm->connsm->conn_itvl *
                                      BLE_LL_CONN_ITVL_USECS;
+
+#if BABBLESIM
+    /* round to whole bytes + bsim */
+    cssm->mode0_step_duration_usecs += 4+16+24;
+    cssm->mode1_step_duration_usecs += 4+16+24;
+    cssm->mode2_step_duration_usecs += 4+16+24;
+    cssm->mode3_step_duration_usecs += 4+16+24;
+#endif
+
     return 0;
 }
 
@@ -950,6 +959,10 @@ ble_ll_cs_proc_mode0_next_state(struct ble_ll_cs_sm *cssm)
     uint8_t t_fcs = cssm->active_config->t_fcs;
     uint8_t t_sy = cssm->t_sy;
 
+#if BABBLESIM
+    t_sy += 4+16+24;
+#endif
+
     switch (state) {
     case STEP_STATE_INIT:
         state = STEP_STATE_CS_SYNC_I;
@@ -989,6 +1002,10 @@ ble_ll_cs_proc_mode1_next_state(struct ble_ll_cs_sm *cssm)
     uint8_t t_ip1 = cssm->active_config->t_ip1;
     uint8_t t_fcs = cssm->active_config->t_fcs;
     uint8_t t_sy = cssm->t_sy + cssm->t_sy_seq;
+
+#if BABBLESIM
+    t_sy += 4+16+24;
+#endif
 
     switch (state) {
     case STEP_STATE_INIT:
@@ -1079,6 +1096,10 @@ ble_ll_cs_proc_mode3_next_state(struct ble_ll_cs_sm *cssm)
     uint8_t t_fcs = cssm->active_config->t_fcs;
     uint8_t t_sy = cssm->t_sy + cssm->t_sy_seq;
     uint8_t t_pm = cssm->active_config->t_pm;
+
+#if BABBLESIM
+    t_sy += 4+16+24;
+#endif
 
     switch (state) {
     case STEP_STATE_INIT:
@@ -1221,74 +1242,65 @@ ble_ll_cs_proc_skip_txrx(struct ble_ll_cs_sm *cssm)
 static ble_ll_cs_sched_cb_func
 ble_ll_cs_proc_sched_cb_get(struct ble_ll_cs_sm *cssm)
 {
+    int phy_state;
     ble_ll_cs_sched_cb_func cb;
+    bool is_initiator = (cssm->active_config->role == BLE_LL_CS_ROLE_INITIATOR);
 
     cssm->rx_window_offset_usecs = 0;
 
-    if (cssm->active_config->role == BLE_LL_CS_ROLE_INITIATOR) {
-        switch (cssm->step_state) {
-        case STEP_STATE_CS_SYNC_I:
+    switch (cssm->step_state) {
+    case STEP_STATE_CS_SYNC_I:
+        if (is_initiator) {
             cb = ble_ll_cs_sync_tx_start;
-            break;
-        case STEP_STATE_CS_SYNC_R:
+        } else {
             cb = ble_ll_cs_sync_rx_start;
             cssm->rx_window_offset_usecs = 2;
-            break;
-        case STEP_STATE_CS_TONE_I:
-            cb = ble_ll_cs_tone_tx_start;
-            break;
-        case STEP_STATE_CS_TONE_R:
-            cb = ble_ll_cs_tone_rx_start;
-            break;
-        case STEP_STATE_CS_TONE_EXT_I:
-            if (cssm->tone_ext_presence_i) {
-                cb = ble_ll_cs_tone_tx_start;
-            } else {
-                cb = ble_ll_cs_proc_skip_txrx;
-            }
-            break;
-        case STEP_STATE_CS_TONE_EXT_R:
-            if (cssm->tone_ext_presence_r) {
-                cb = ble_ll_cs_tone_rx_start;
-            } else {
-                cb = ble_ll_cs_proc_skip_txrx;
-            }
-            break;
-        default:
-            BLE_LL_ASSERT(0);
         }
-    } else { /* BLE_LL_CS_ROLE_REFLECTOR */
-        switch (cssm->step_state) {
-        case STEP_STATE_CS_SYNC_I:
+        break;
+    case STEP_STATE_CS_SYNC_R:
+        if (is_initiator) {
             cb = ble_ll_cs_sync_rx_start;
             cssm->rx_window_offset_usecs = 2;
-            break;
-        case STEP_STATE_CS_SYNC_R:
+        } else {
             cb = ble_ll_cs_sync_tx_start;
-            break;
-        case STEP_STATE_CS_TONE_I:
-            cb = ble_ll_cs_tone_rx_start;
-            break;
-        case STEP_STATE_CS_TONE_R:
-            cb = ble_ll_cs_tone_tx_start;
-            break;
-        case STEP_STATE_CS_TONE_EXT_I:
-            if (cssm->tone_ext_presence_i) {
-                cb = ble_ll_cs_tone_rx_start;
-            } else {
-                cb = ble_ll_cs_proc_skip_txrx;
-            }
-            break;
-        case STEP_STATE_CS_TONE_EXT_R:
-            if (cssm->tone_ext_presence_r) {
-                cb = ble_ll_cs_tone_tx_start;
-            } else {
-                cb = ble_ll_cs_proc_skip_txrx;
-            }
-            break;
-        default:
-            BLE_LL_ASSERT(0);
         }
+        break;
+    case STEP_STATE_CS_TONE_I:
+        cb = is_initiator ? ble_ll_cs_tone_tx_start : ble_ll_cs_tone_rx_start;
+        break;
+    case STEP_STATE_CS_TONE_R:
+        cb = is_initiator ? ble_ll_cs_tone_rx_start : ble_ll_cs_tone_tx_start;
+        break;
+    case STEP_STATE_CS_TONE_EXT_I:
+        if (cssm->tone_ext_presence_i) {
+            cb = is_initiator ? ble_ll_cs_tone_tx_start : ble_ll_cs_tone_rx_start;
+        } else {
+            cb = ble_ll_cs_proc_skip_txrx;
+        }
+        break;
+    case STEP_STATE_CS_TONE_EXT_R:
+        if (cssm->tone_ext_presence_r) {
+            cb = is_initiator ? ble_ll_cs_tone_rx_start : ble_ll_cs_tone_tx_start;
+        } else {
+            cb = ble_ll_cs_proc_skip_txrx;
+        }
+        break;
+    default:
+        BLE_LL_ASSERT(0);
+    }
+
+    phy_state = ble_phy_state_get();
+    switch (phy_state) {
+    case BLE_PHY_STATE_TX:
+        cssm->phy_transition = (cb == ble_ll_cs_sync_tx_start || cb == ble_ll_cs_tone_tx_start)
+                               ? BLE_PHY_TRANSITION_TX_TX : BLE_PHY_TRANSITION_TX_RX;
+        break;
+    case BLE_PHY_STATE_RX:
+        cssm->phy_transition = (cb == ble_ll_cs_sync_tx_start || cb == ble_ll_cs_tone_tx_start)
+                               ? BLE_PHY_TRANSITION_RX_TX : BLE_PHY_TRANSITION_RX_RX;
+        break;
+    default:
+        cssm->phy_transition = BLE_PHY_TRANSITION_NONE;
     }
 
     return cb;
@@ -1314,28 +1326,31 @@ int
 ble_ll_cs_proc_schedule_next_tx_or_rx(struct ble_ll_cs_sm *cssm)
 {
     int rc;
+    uint32_t anchor_cputime;
     ble_ll_cs_sched_cb_func cb;
 
     rc = ble_ll_cs_proc_next_state(cssm);
     if (rc) {
+        cssm->phy_transition = BLE_PHY_TRANSITION_NONE;
         return rc;
     }
 
     cb = ble_ll_cs_proc_sched_cb_get(cssm);
-    cssm->anchor_usecs -= cssm->rx_window_offset_usecs;
-    cssm->anchor_cputime = ble_ll_tmr_u2t_r(cssm->anchor_usecs, &cssm->anchor_rem_usecs);
+//    cssm->anchor_usecs -= cssm->rx_window_offset_usecs;
+    anchor_cputime = ble_ll_tmr_u2t(cssm->anchor_usecs);
 
-    if (cssm->anchor_cputime - g_ble_ll_sched_offset_ticks > ble_ll_tmr_get()) {
-        cssm->sch.start_time = cssm->anchor_cputime - g_ble_ll_sched_offset_ticks;
+    if (anchor_cputime - g_ble_ll_sched_offset_ticks - 1 > ble_ll_tmr_get()) {
+        cssm->phy_transition = BLE_PHY_TRANSITION_NONE;
+        cssm->sch.start_time = anchor_cputime - g_ble_ll_sched_offset_ticks;
         cssm->sched_cb = cb;
-        cssm->sch.end_time = cssm->sch.start_time + ble_ll_tmr_u2t_up(cssm->duration_usecs);
+        cssm->sch.end_time = anchor_cputime + ble_ll_tmr_u2t_up(cssm->duration_usecs);
         cssm->sch.remainder = 0;
         cssm->sch.sched_type = BLE_LL_SCHED_TYPE_CS;
         cssm->sch.cb_arg = cssm;
         cssm->sch.sched_cb = ble_ll_cs_proc_sched_cb;
         rc = ble_ll_sched_cs_proc(&cssm->sch);
     } else {
-        cssm->sch.start_time = ble_ll_tmr_get();
+        /* Radio start already scheduled, just configure. */
         rc = cb(cssm);
     }
 

@@ -66,6 +66,7 @@ struct os_mbuf;
 #define BLE_PHY_TRANSITION_RX_TX    (1)
 #define BLE_PHY_TRANSITION_TX_RX    (2)
 #define BLE_PHY_TRANSITION_TX_TX    (3)
+#define BLE_PHY_TRANSITION_RX_RX    (4)
 
 /* PHY error codes */
 #define BLE_PHY_ERR_RADIO_STATE     (1)
@@ -244,7 +245,7 @@ void ble_phy_get_txend_time(uint32_t *cputime, uint32_t *rem_us, uint32_t *rem_n
 void ble_phy_get_rxend_time(uint32_t *cputime, uint32_t *rem_us, uint32_t *rem_ns);
 typedef uint8_t (*ble_phy_tx_cs_sync_cb_t)(uint8_t *dptr, void *pducb_arg, uint8_t *hdr_byte);
 void ble_phy_cs_sync_mode_set(uint8_t mode);
-int ble_phy_tx_cs_sync(ble_phy_tx_cs_sync_cb_t pktcb, void *pktcb_arg);
+int ble_phy_tx_cs_sync(ble_phy_tx_cs_sync_cb_t pktcb, void *pktcb_arg, uint8_t end_trans);
 int ble_phy_cs_sync_configure(uint8_t chan, uint32_t access_addr);
 
 #if MYNEWT_VAL(BLE_LL_DTM)

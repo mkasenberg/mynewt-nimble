@@ -34,6 +34,7 @@ extern struct ble_ll_cs_supp_cap g_ble_ll_cs_local_cap;
 extern struct ble_ll_cs_sm g_ble_ll_cs_sm[MYNEWT_VAL(BLE_MAX_CONNECTIONS)];
 extern struct ble_ll_cs_sm *g_ble_ll_cs_sm_current;
 extern int8_t g_ble_ll_tx_power;
+extern void ble_phy_transition_set(uint8_t transition);
 
 static uint8_t
 ble_ll_cs_sync_calc_seq_quality(struct ble_ll_cs_sm *cssm, uint8_t *rxpdu,
@@ -138,12 +139,12 @@ ble_ll_cs_sync_tx_end_cb(void *arg)
     cssm->step_result.time_of_departure_us = cssm->anchor_usecs;
     cssm->step_result.time_of_departure_ns = rem_ns;
 
-    rc = ble_ll_cs_proc_schedule_next_tx_or_rx(cssm);
-    if (rc || conf->role == BLE_LL_CS_ROLE_REFLECTOR) {
+    ble_ll_cs_proc_schedule_next_tx_or_rx(cssm);
+    ble_phy_transition_set(cssm->phy_transition);
+    if (cssm->phy_transition == BLE_PHY_TRANSITION_NONE) {
         ble_phy_disable();
         ble_phy_cs_sync_mode_set(0);
         ble_ll_state_set(BLE_LL_STATE_STANDBY);
-        assert(rc == 0); //XXX
     }
 }
 
@@ -164,6 +165,8 @@ int
 ble_ll_cs_sync_tx_start(struct ble_ll_cs_sm *cssm)
 {
     int rc;
+    uint32_t cputime;
+    uint8_t rem_us;
     uint8_t ll_state;
 
     ll_state = ble_ll_state_get();
@@ -179,9 +182,11 @@ ble_ll_cs_sync_tx_start(struct ble_ll_cs_sm *cssm)
         return 1;
     }
 
+    cputime = ble_ll_tmr_u2t_r(cssm->anchor_usecs, &rem_us);
+
     /* At transition the radio is already scheduled to start at right time */
     if (ll_state != BLE_LL_STATE_CS) {
-        rc = ble_phy_tx_set_start_time(cssm->anchor_cputime, cssm->anchor_rem_usecs);
+        rc = ble_phy_tx_set_start_time(cputime, rem_us);
         if (rc) {
             ble_ll_cs_proc_sync_lost(cssm);
             return 1;
@@ -190,7 +195,7 @@ ble_ll_cs_sync_tx_start(struct ble_ll_cs_sm *cssm)
 
     ble_phy_set_txend_cb(ble_ll_cs_sync_tx_end_cb, cssm);
 
-    rc = ble_phy_tx_cs_sync(ble_ll_cs_sync_tx_make, cssm);
+    rc = ble_phy_tx_cs_sync(ble_ll_cs_sync_tx_make, cssm, BLE_PHY_TRANSITION_NONE);
     if (rc) {
         ble_ll_cs_proc_sync_lost(cssm);
         return 1;
@@ -207,6 +212,8 @@ ble_ll_cs_sync_rx_start(struct ble_ll_cs_sm *cssm)
     int rc;
     uint32_t wfr_usecs;
     uint8_t ll_state;
+    uint32_t cputime;
+    uint8_t rem_us;
 
     ll_state = ble_ll_state_get();
     BLE_LL_ASSERT(ll_state == BLE_LL_STATE_STANDBY || ll_state == BLE_LL_STATE_CS);
@@ -219,9 +226,11 @@ ble_ll_cs_sync_rx_start(struct ble_ll_cs_sm *cssm)
         return 1;
     }
 
+    cputime = ble_ll_tmr_u2t_r(cssm->anchor_usecs, &rem_us);
+
     /* At transition the radio is already scheduled to start at right time */
     if (ll_state != BLE_LL_STATE_CS) {
-        rc = ble_phy_rx_set_start_time(cssm->anchor_cputime, cssm->anchor_rem_usecs);
+        rc = ble_phy_rx_set_start_time(cputime, rem_us);
         if (rc) {
             ble_ll_cs_proc_sync_lost(cssm);
             return 1;
@@ -324,12 +333,12 @@ ble_ll_cs_sync_rx_isr_end(uint8_t *rxbuf, struct ble_mbuf_hdr *rxhdr)
         cssm->step_result.packet_pct2 = 0xFFFFFFFF;
     }
 
-    rc = ble_ll_cs_proc_schedule_next_tx_or_rx(cssm);
-    if (rc || conf->role == BLE_LL_CS_ROLE_INITIATOR) {
+    ble_ll_cs_proc_schedule_next_tx_or_rx(cssm);
+    ble_phy_transition_set(cssm->phy_transition);
+    if (cssm->phy_transition == BLE_PHY_TRANSITION_NONE) {
         ble_phy_disable();
         ble_phy_cs_sync_mode_set(0);
         ble_ll_state_set(BLE_LL_STATE_STANDBY);
-        assert(rc == 0); //XXX
     }
 
     return 1;

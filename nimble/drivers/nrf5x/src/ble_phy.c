@@ -1143,17 +1143,22 @@ ble_phy_tx_end_isr(void)
 #else
     tifs = BLE_LL_IFS;
 #endif
-    transition = g_ble_phy_data.phy_transition;
 
 #if MYNEWT_VAL(BLE_CHANNEL_SOUNDING)
     if (ble_ll_state_get() == BLE_LL_STATE_CS) {
+#if BABBLESIM
+        g_ble_phy_data.txend_time_ticks = NRF_TIMER0->CC[2] + g_ble_phy_t_txenddelay[tx_phy_mode];
+#else
         g_ble_phy_data.txend_time_ticks = NRF_TIMER0->CC[4];
+#endif
     }
 #endif
 
     if (g_ble_phy_data.txend_cb) {
         g_ble_phy_data.txend_cb(g_ble_phy_data.txend_arg);
     }
+
+    transition = g_ble_phy_data.phy_transition;
 
     if (transition == BLE_PHY_TRANSITION_TX_RX) {
 #if MYNEWT_VAL(BLE_LL_PHY)
@@ -1165,9 +1170,8 @@ ble_phy_tx_end_isr(void)
 
         ble_phy_wfr_enable(BLE_PHY_WFR_ENABLE_TXRX, tx_phy_mode, 0);
 
-        rx_time = RADIO_TIMER_TICKS_TO_US(NRF_TIMER0->CC[2]);
         /* Schedule RX exactly T_IFS after TX end captured in CC[2] */
-        rx_time += tifs;
+        rx_time = RADIO_TIMER_TICKS_TO_US(NRF_TIMER0->CC[2]) + tifs;
         /* Adjust for delay between EVENT_END and actual TX end time */
         rx_time += g_ble_phy_t_txenddelay[tx_phy_mode];
         /* Start listening a bit earlier due to allowed active clock accuracy */
@@ -1374,7 +1378,11 @@ ble_phy_rx_end_isr(void)
 #endif
 
 #if MYNEWT_VAL(BLE_CHANNEL_SOUNDING)
-    g_ble_phy_data.rxend_time_ticks = NRF_TIMER0->CC[4];
+#if BABBLESIM
+        g_ble_phy_data.rxend_time_ticks = NRF_TIMER0->CC[2] - g_ble_phy_t_rxenddelay[ble_hdr->rxinfo.phy_mode];
+#else
+        g_ble_phy_data.rxend_time_ticks = NRF_TIMER0->CC[4];
+#endif
 #endif
 
     /* Schedule TX exactly T_IFS after RX end captured in CC[2] */
@@ -2534,6 +2542,12 @@ ble_phy_tifs_txtx_set(uint16_t usecs, uint8_t anchor)
     g_ble_phy_data.txtx_time_anchor = anchor;
 }
 
+void
+ble_phy_transition_set(uint8_t transition)
+{
+    g_ble_phy_data.phy_transition = transition;
+}
+
 #if MYNEWT_VAL(BLE_CHANNEL_SOUNDING)
 void
 ble_phy_get_txend_time(uint32_t *cputime, uint32_t *rem_us, uint32_t *rem_ns)
@@ -2556,17 +2570,15 @@ ble_phy_get_rxend_time(uint32_t *cputime, uint32_t *rem_us, uint32_t *rem_ns)
 void
 ble_phy_cs_sync_mode_set(uint8_t mode)
 {
-    if (mode == 0) {
 #if !BABBLESIM
+    if (mode == 0) {
         /* Configure back the registers */
         NRF_RADIO->CRCCNF = (RADIO_CRCCNF_SKIPADDR_Skip << RADIO_CRCCNF_SKIPADDR_Pos) | RADIO_CRCCNF_LEN_Three;
         NRF_RADIO->PCNF0 = NRF_PCNF0;
         NRF_RADIO->PCNF1 |= RADIO_PCNF1_WHITEEN_Msk;
         NRF_TIMER0->PRESCALER = 5;  /* gives us 1 MHz */
-#endif
         g_ble_phy_data.timer_ticks_per_us = 1;
     } else {
-#if !BABBLESIM
         /* CS SYNC packet has no PDU or CRC */
         NRF_RADIO->CRCCNF = RADIO_CRCCNF_SKIPADDR_Skip << RADIO_CRCCNF_SKIPADDR_Pos;
         /* CS_SYNC needs only PAYLOAD field, so do not trasmit S0, LENGTH and S1 fields. */
@@ -2574,18 +2586,18 @@ ble_phy_cs_sync_mode_set(uint8_t mode)
         /* Disable whitening */
         NRF_RADIO->PCNF1 &= ~RADIO_PCNF1_WHITEEN_Msk;
         NRF_TIMER0->PRESCALER = 0;  /* gives us 128 MHz */
-#endif
         g_ble_phy_data.timer_ticks_per_us = 128;
     }
+#endif
 }
 
 int
-ble_phy_tx_cs_sync(ble_phy_tx_cs_sync_cb_t pktcb, void *pktcb_arg)
+ble_phy_tx_cs_sync(ble_phy_tx_cs_sync_cb_t pktcb, void *pktcb_arg, uint8_t end_trans)
 {
     int rc;
 
     /* Temporary, for babblesim testing */
-    rc = ble_phy_tx(pktcb, pktcb_arg, BLE_PHY_TRANSITION_NONE);
+    rc = ble_phy_tx(pktcb, pktcb_arg, end_trans);
     /* TODO: Adjustments for CS SYNC packet:
      * - Turn off CRC
      * - set 4 bits in S1
