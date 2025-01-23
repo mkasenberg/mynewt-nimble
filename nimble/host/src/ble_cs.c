@@ -764,6 +764,7 @@ ble_cs_add_mode1_result(const uint8_t *data, uint8_t data_len)
     (void)packet_pct2;
 
     if (time_diff != TIME_DIFF_NOT_AVAILABLE) {
+        BLE_HS_LOG(DEBUG, "time_diff=%d", time_diff);
         time_diff_sum += time_diff;
         ++time_diff_count;
     }
