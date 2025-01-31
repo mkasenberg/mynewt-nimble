@@ -78,6 +78,7 @@
 #if BABBLESIM
 extern void tm_tick(void);
 #endif
+#include "bs_tracing.h"
 
 #include <controller/ble_ll_pdu.h>
 
@@ -245,6 +246,12 @@ static const uint16_t g_ble_phy_mode_pkt_start_off[BLE_PHY_NUM_MODE] = {
 /* Radio ramp-up times in usecs (fast mode) */
 #define BLE_PHY_T_TXENFAST      (XCVR_TX_RADIO_RAMPUP_USECS)
 #define BLE_PHY_T_RXENFAST      (XCVR_RX_RADIO_RAMPUP_USECS)
+
+static inline uint32_t
+ble_ll_tmr_t2u(uint32_t ticks)
+{
+    return ticks * (1000000.0 / 32768);
+}
 
 #if BABBLESIM
 /* delay between EVENTS_READY and start of tx */
@@ -787,6 +794,11 @@ ble_phy_set_start_time(uint32_t cputime, uint8_t rem_us, bool tx)
     /* Store the cputime at which we set the RTC */
     g_ble_phy_data.phy_start_cputime = cputime;
 
+    bs_trace_raw_time(0, "Radio RUMPUP start: %u[us] = %u[ticks] + %u[us] = %u[us] + %u[us]\n",
+                      ble_ll_tmr_t2u(cputime) + radio_rem_us + rem_us_corr,
+                      cputime, radio_rem_us + rem_us_corr,
+                      ble_ll_tmr_t2u(cputime), radio_rem_us + rem_us_corr);
+
     return 0;
 }
 
@@ -1286,6 +1298,10 @@ ble_transition_to_rx(uint8_t tifs_anchor, uint16_t tifs_usecs, uint16_t wfr_usec
 
     nrf_timer_cc_set(NRF_TIMER0, 0, radio_time);
     NRF_TIMER0->EVENTS_COMPARE[0] = 0;
+
+    bs_trace_raw_time(0, "%s isr, transition to RX, ANCHOR %d[ticks], RADIO %d[us], START %d[us]\n",
+                      phy_state == BLE_PHY_STATE_TX ? "TX" : "RX",
+                      anchor_time, radio_time, start_time);
 
     if (ble_ll_state_get() == BLE_LL_STATE_CS) {
 #ifdef NRF54L_SERIES
