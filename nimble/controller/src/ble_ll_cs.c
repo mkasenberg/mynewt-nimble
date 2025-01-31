@@ -30,6 +30,7 @@
 #include "ble_ll_conn_priv.h"
 #include "ble_ll_cs_priv.h"
 #include "os/os_mbuf.h"
+#include "bs_tracing.h"
 
 #define T_IP1_CAP_ID_10US 0
 #define T_IP1_CAP_ID_20US 1
@@ -1421,6 +1422,25 @@ ble_ll_cs_start_req_make(struct ble_ll_conn_sm *connsm, uint8_t *dptr)
     dptr[26] = params->tx_power_delta;
     dptr[27] = params->snr_control_initiator |
                params->snr_control_reflector << 4;
+
+    bs_trace_raw_time(0, "sending CS REQ:\n");
+    bs_trace_raw_time(0, "config_id %d\n", config_id);
+    bs_trace_raw_time(0, "anchor_conn_event_cntr %d\n", anchor_conn_event_cntr);
+    bs_trace_raw_time(0, "offset_min %d\n", offset_min);
+    bs_trace_raw_time(0, "offset_max %d\n", offset_max);
+    bs_trace_raw_time(0, "params->max_procedure_len %d\n", params->max_procedure_len);
+    bs_trace_raw_time(0, "event_interval %d\n", event_interval);
+    bs_trace_raw_time(0, "subevents_per_event %d\n", subevents_per_event);
+    bs_trace_raw_time(0, "subevent_interval %d\n", subevent_interval);
+    bs_trace_raw_time(0, "subevent_len %d\n", subevent_len);
+    bs_trace_raw_time(0, "procedure_interval %d\n", procedure_interval);
+    bs_trace_raw_time(0, "params->max_procedure_count %d\n", params->max_procedure_count);
+    bs_trace_raw_time(0, "params->aci %d\n", params->aci);
+    bs_trace_raw_time(0, "params->preferred_peer_antenna %d\n", params->preferred_peer_antenna);
+    bs_trace_raw_time(0, "params->phy %d\n", params->phy);
+    bs_trace_raw_time(0, "params->tx_power_delta %d\n", params->tx_power_delta);
+    bs_trace_raw_time(0, "params->snr_control_initiator %d\n", params->snr_control_initiator);
+    bs_trace_raw_time(0, "params->snr_control_reflector %d\n", params->snr_control_reflector);
 }
 
 static int
@@ -1431,6 +1451,18 @@ ble_ll_cs_start_ind_make(struct ble_ll_conn_sm *connsm, uint8_t *rspbuf)
 
     assert(config_id < ARRAY_SIZE(connsm->cssm->config));
     ps = &connsm->cssm->config[config_id].proc_params;
+
+    bs_trace_raw_time(0, "sending CS IND:\n");
+    bs_trace_raw_time(0, "config_id %d\n", config_id);
+    bs_trace_raw_time(0, "ps->anchor_conn_event_cntr %d\n", ps->anchor_conn_event_cntr);
+    bs_trace_raw_time(0, "ps->event_offset %d\n", ps->event_offset);
+    bs_trace_raw_time(0, "ps->event_interval %d\n", ps->event_interval);
+    bs_trace_raw_time(0, "ps->subevents_per_event %d\n", ps->subevents_per_event);
+    bs_trace_raw_time(0, "ps->subevent_interval %d\n", ps->subevent_interval);
+    bs_trace_raw_time(0, "ps->subevent_len %d\n", ps->subevent_len);
+    bs_trace_raw_time(0, "ps->aci %d\n", ps->aci);
+    bs_trace_raw_time(0, "ps->phy %d\n", ps->phy);
+    bs_trace_raw_time(0, "ps->tx_power_delta %d\n", ps->tx_power_delta);
 
     *rspbuf = config_id;
     put_le16(rspbuf + 1, ps->anchor_conn_event_cntr);
@@ -1455,6 +1487,19 @@ ble_ll_cs_start_rsp_make(struct ble_ll_conn_sm *connsm, uint8_t *rspbuf)
 
     assert(config_id < ARRAY_SIZE(connsm->cssm->config));
     ps = &connsm->cssm->config[config_id].proc_params;
+
+    bs_trace_raw_time(0, "sending CS RSP:\n");
+    bs_trace_raw_time(0, "config_id %d\n", config_id);
+    bs_trace_raw_time(0, "ps->anchor_conn_event_cntr %d\n", ps->anchor_conn_event_cntr);
+    bs_trace_raw_time(0, "ps->offset_min %d\n", ps->offset_min);
+    bs_trace_raw_time(0, "ps->offset_max %d\n", ps->offset_max);
+    bs_trace_raw_time(0, "ps->event_interval %d\n", ps->event_interval);
+    bs_trace_raw_time(0, "ps->subevents_per_event %d\n", ps->subevents_per_event);
+    bs_trace_raw_time(0, "ps->subevent_interval %d\n", ps->subevent_interval);
+    bs_trace_raw_time(0, "ps->subevent_len %d\n", ps->subevent_len);
+    bs_trace_raw_time(0, "ps->aci %d\n", ps->aci);
+    bs_trace_raw_time(0, "ps->phy %d\n", ps->phy);
+    bs_trace_raw_time(0, "ps->tx_power_delta %d\n", ps->tx_power_delta);
 
     *rspbuf = config_id;
     put_le16(rspbuf + 1, ps->anchor_conn_event_cntr);
@@ -1606,6 +1651,25 @@ ble_ll_cs_rx_cs_start_req(struct ble_ll_conn_sm *connsm, uint8_t *dptr, uint8_t 
     ps->tx_snr_i = dptr[27] & 0b00001111;
     ps->tx_snr_r = (dptr[27] >> 4) & 0b00001111;
 
+    bs_trace_raw_time(0, "received CS REQ:\n");
+    bs_trace_raw_time(0, "config_id %d\n", config_id);
+    bs_trace_raw_time(0, "ps->anchor_conn_event_cntr %d\n", ps->anchor_conn_event_cntr);
+    bs_trace_raw_time(0, "ps->offset_min %d\n", ps->offset_min);
+    bs_trace_raw_time(0, "ps->offset_max %d\n", ps->offset_max);
+    bs_trace_raw_time(0, "ps->max_procedure_len %d\n", ps->max_procedure_len);
+    bs_trace_raw_time(0, "ps->event_interval %d\n", ps->event_interval);
+    bs_trace_raw_time(0, "ps->subevents_per_event %d\n", ps->subevents_per_event);
+    bs_trace_raw_time(0, "ps->subevent_interval %d\n", ps->subevent_interval);
+    bs_trace_raw_time(0, "ps->subevent_len %d\n", ps->subevent_len);
+    bs_trace_raw_time(0, "ps->procedure_interval %d\n", ps->procedure_interval);
+    bs_trace_raw_time(0, "ps->max_procedure_count %d\n", ps->max_procedure_count);
+    bs_trace_raw_time(0, "ps->aci %d\n", ps->aci);
+    bs_trace_raw_time(0, "ps->preferred_peer_antenna %d\n", ps->preferred_peer_antenna);
+    bs_trace_raw_time(0, "ps->phy %d\n", ps->phy);
+    bs_trace_raw_time(0, "ps->tx_power_delta %d\n", ps->tx_power_delta);
+    bs_trace_raw_time(0, "ps->tx_snr_i %d\n", ps->tx_snr_i);
+    bs_trace_raw_time(0, "ps->tx_snr_r %d\n", ps->tx_snr_r);
+
     /* In Peripheral role some parameters can be resuggested in LL_CS_RSP. */
     rc = validate_cs_start_parameters(connsm, ps);
     if (rc < 0 || (rc > 0 && CONN_IS_CENTRAL(connsm))) {
@@ -1679,6 +1743,19 @@ ble_ll_cs_rx_cs_start_rsp(struct ble_ll_conn_sm *connsm, uint8_t *dptr, uint8_t 
     /* Stop the control procedure and send an event to the host */
     ble_ll_ctrl_proc_stop(connsm, BLE_LL_CTRL_PROC_CS_START);
 
+    bs_trace_raw_time(0, "received CS RSP:\n");
+    bs_trace_raw_time(0, "config_id %d\n", config_id);
+    bs_trace_raw_time(0, "ps->anchor_conn_event_cntr %d\n", ps->anchor_conn_event_cntr);
+    bs_trace_raw_time(0, "ps->offset_min %d\n", ps->offset_min);
+    bs_trace_raw_time(0, "ps->offset_max %d\n", ps->offset_max);
+    bs_trace_raw_time(0, "ps->event_interval %d\n", ps->event_interval);
+    bs_trace_raw_time(0, "ps->subevents_per_event %d\n", ps->subevents_per_event);
+    bs_trace_raw_time(0, "ps->subevent_interval %d\n", ps->subevent_interval);
+    bs_trace_raw_time(0, "ps->subevent_len %d\n", ps->subevent_len);
+    bs_trace_raw_time(0, "ps->aci %d\n", ps->aci);
+    bs_trace_raw_time(0, "ps->phy %d\n", ps->phy);
+    bs_trace_raw_time(0, "ps->tx_power_delta %d\n", ps->tx_power_delta);
+
     rc = ble_ll_cs_proc_scheduling_start(connsm, config_id);
     if (rc) {
         memset(ps, 0, sizeof(*ps));
@@ -1724,6 +1801,18 @@ ble_ll_cs_rx_cs_start_ind(struct ble_ll_conn_sm *connsm, uint8_t *dptr,
     ps->aci = dptr[14];
     ps->phy = dptr[15];
     ps->tx_power_delta = dptr[16];
+
+    bs_trace_raw_time(0, "received CS IND:\n");
+    bs_trace_raw_time(0, "config_id %d\n", config_id);
+    bs_trace_raw_time(0, "ps->anchor_conn_event_cntr %d\n", ps->anchor_conn_event_cntr);
+    bs_trace_raw_time(0, "ps->event_offset %d\n", ps->event_offset);
+    bs_trace_raw_time(0, "ps->event_interval %d\n", ps->event_interval);
+    bs_trace_raw_time(0, "ps->subevents_per_event %d\n", ps->subevents_per_event);
+    bs_trace_raw_time(0, "ps->subevent_interval %d\n", ps->subevent_interval);
+    bs_trace_raw_time(0, "ps->subevent_len %d\n", ps->subevent_len);
+    bs_trace_raw_time(0, "ps->aci %d\n", ps->aci);
+    bs_trace_raw_time(0, "ps->phy %d\n", ps->phy);
+    bs_trace_raw_time(0, "ps->tx_power_delta %d\n", ps->tx_power_delta);
 
     rc = validate_cs_start_parameters(connsm, ps);
     if (rc) {

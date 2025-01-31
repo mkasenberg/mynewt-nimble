@@ -33,6 +33,7 @@
 #include "controller/ble_ll_sync.h"
 #include "controller/ble_ll_tmr.h"
 #include "ble_ll_conn_priv.h"
+#include "bs_tracing.h"
 
 #if MYNEWT_VAL(BLE_LL_ROLE_PERIPHERAL) || MYNEWT_VAL(BLE_LL_ROLE_CENTRAL)
 
@@ -2490,6 +2491,69 @@ ble_ll_ctrl_rx_chanmap_req(struct ble_ll_conn_sm *connsm, uint8_t *dptr)
     return BLE_ERR_MAX;
 }
 
+static const char*
+ll_packet_names[] = {
+    "BLE_LL_CTRL_CONN_UPDATE_IND",
+    "BLE_LL_CTRL_CHANNEL_MAP_REQ",
+    "BLE_LL_CTRL_TERMINATE_IND",
+    "BLE_LL_CTRL_ENC_REQ",
+    "BLE_LL_CTRL_ENC_RSP",
+    "BLE_LL_CTRL_START_ENC_REQ",
+    "BLE_LL_CTRL_START_ENC_RSP",
+    "BLE_LL_CTRL_UNKNOWN_RSP",
+    "BLE_LL_CTRL_FEATURE_REQ",
+    "BLE_LL_CTRL_FEATURE_RSP",
+    "BLE_LL_CTRL_PAUSE_ENC_REQ",
+    "BLE_LL_CTRL_PAUSE_ENC_RSP",
+    "BLE_LL_CTRL_VERSION_IND",
+    "BLE_LL_CTRL_REJECT_IND",
+    "BLE_LL_CTRL_PERIPH_FEATURE_REQ",
+    "BLE_LL_CTRL_CONN_PARM_REQ",
+    "BLE_LL_CTRL_CONN_PARM_RSP",
+    "BLE_LL_CTRL_REJECT_IND_EXT",
+    "BLE_LL_CTRL_PING_REQ",
+    "BLE_LL_CTRL_PING_RSP",
+    "BLE_LL_CTRL_LENGTH_REQ",
+    "BLE_LL_CTRL_LENGTH_RSP",
+    "BLE_LL_CTRL_PHY_REQ",
+    "BLE_LL_CTRL_PHY_RSP",
+    "BLE_LL_CTRL_PHY_UPDATE_IND",
+    "BLE_LL_CTRL_MIN_USED_CHAN_IND",
+    "BLE_LL_CTRL_CTE_REQ",
+    "BLE_LL_CTRL_CTE_RSP",
+    "BLE_LL_CTRL_PERIODIC_SYNC_IND",
+    "BLE_LL_CTRL_CLOCK_ACCURACY_REQ",
+    "BLE_LL_CTRL_CLOCK_ACCURACY_RSP",
+    "BLE_LL_CTRL_CIS_REQ",
+    "BLE_LL_CTRL_CIS_RSP",
+    "BLE_LL_CTRL_CIS_IND",
+    "BLE_LL_CTRL_CIS_TERMINATE_IND",
+    "BLE_LL_CTRL_POWER_CONTROL_REQ",
+    "BLE_LL_CTRL_POWER_CONTROL_RSP",
+    "BLE_LL_CTRL_POWER_CHANGE_IND",
+    "BLE_LL_CTRL_SUBRATE_REQ",
+    "BLE_LL_CTRL_SUBRATE_IND",
+    "BLE_LL_CTRL_CHAN_REPORTING_IND",
+    "BLE_LL_CTRL_CHAN_STATUS_IND",
+    "BLE_LL_CTRL_PERIODIC_SYNC_WR_IND",
+    "BLE_LL_CTRL_FEATURE_EXT_REQ",
+    "BLE_LL_CTRL_FEATURE_EXT_RSP",
+    "BLE_LL_CTRL_CS_SEC_RSP",
+    "BLE_LL_CTRL_CS_CAPABILITIES_REQ",
+    "BLE_LL_CTRL_CS_CAPABILITIES_RSP",
+    "BLE_LL_CTRL_CS_CONFIG_REQ",
+    "BLE_LL_CTRL_CS_CONFIG_RSP",
+    "BLE_LL_CTRL_CS_REQ",
+    "BLE_LL_CTRL_CS_RSP",
+    "BLE_LL_CTRL_CS_IND",
+    "BLE_LL_CTRL_CS_TERMINATE_REQ",
+    "BLE_LL_CTRL_CS_FAE_REQ",
+    "BLE_LL_CTRL_CS_FAE_RSP",
+    "BLE_LL_CTRL_CS_CHANNEL_MAP_IND",
+    "BLE_LL_CTRL_CS_SEC_REQ",
+    "BLE_LL_CTRL_CS_TERMINATE_RSP"
+};
+
 /**
  * Initiate LL control procedure.
  *
@@ -2635,6 +2699,13 @@ ble_ll_ctrl_proc_init(struct ble_ll_conn_sm *connsm, int ctrl_proc, void *data)
         default:
             BLE_LL_ASSERT(0);
             break;
+        }
+
+        if (opcode == BLE_LL_CTRL_PING_REQ) {
+        } else if (opcode <= BLE_LL_CTRL_CS_TERMINATE_RSP) {
+            //bs_trace_raw_time(0, "Sending PDU: %s\n", ll_packet_names[opcode]);
+        } else {
+            //bs_trace_raw_time(0, "Sending unkown PDU: %d\n", opcode);
         }
 
         /* Set llid, length and opcode */
@@ -2871,6 +2942,13 @@ ble_ll_ctrl_rx_pdu(struct ble_ll_conn_sm *connsm, struct os_mbuf *om)
     dptr = om->om_data;
     len = dptr[1];
     opcode = dptr[2];
+
+    if (opcode == BLE_LL_CTRL_PING_REQ || opcode == BLE_LL_CTRL_PING_RSP) {
+    } else if (opcode <= BLE_LL_CTRL_CS_TERMINATE_RSP) {
+        //bs_trace_raw_time(0, "Received PDU: %s\n", ll_packet_names[opcode]);
+    } else {
+        //bs_trace_raw_time(0, "Received unkown PDU: %d\n", opcode);
+    }
 
 #if MYNEWT_VAL(BLE_LL_HCI_LLCP_TRACE)
     ble_ll_hci_ev_send_vs_llcp_trace(0x03, connsm->conn_handle,
@@ -3167,6 +3245,14 @@ ll_ctrl_send_rsp:
         if (rsp_opcode == BLE_LL_CTRL_UNKNOWN_RSP) {
             rspbuf[1] = opcode;
         }
+
+        if (opcode == BLE_LL_CTRL_PING_REQ) {
+        } else if (rsp_opcode <= BLE_LL_CTRL_CS_TERMINATE_RSP) {
+            //bs_trace_raw_time(0, "Sending PDU: %s\n", ll_packet_names[rsp_opcode]);
+        } else {
+            //bs_trace_raw_time(0, "Sending unkown PDU: %d\n", rsp_opcode);
+        }
+
         len = g_ble_ll_ctrl_pkt_lengths[rsp_opcode] + 1;
         ble_ll_conn_enqueue_pkt(connsm, om, BLE_LL_LLID_CTRL, len);
     }

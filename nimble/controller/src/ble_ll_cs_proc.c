@@ -26,6 +26,7 @@
 #include "controller/ble_ll_tmr.h"
 #include "controller/ble_ll_hci.h"
 #include "ble_ll_cs_priv.h"
+#include "bs_tracing.h"
 
 extern struct ble_ll_cs_supp_cap g_ble_ll_cs_local_cap;
 extern uint8_t g_ble_ll_cs_chan_count;
@@ -144,6 +145,7 @@ ble_ll_cs_backtracking_resistance(struct ble_ll_cs_sm *cssm)
 void
 ble_ll_cs_proc_halt(void)
 {
+    bs_trace_raw_time(0, "Scheduled item preempted! %d [ticks]\n", ble_ll_tmr_get());
 }
 
 /**
@@ -153,6 +155,7 @@ ble_ll_cs_proc_halt(void)
 void
 ble_ll_cs_proc_rm_from_sched(void *cb_args)
 {
+    bs_trace_raw_time(0, "Scheduled item removed without being run!\n");
 }
 
 static int
@@ -546,6 +549,12 @@ ble_lL_cs_validate_step_duration(struct ble_ll_cs_sm *cssm)
     uint32_t step_duration_usecs = cssm->mode_duration_usecs[cssm->step_mode];
     uint32_t total_subevent_usecs = cssm->step_anchor_usecs - cssm->subevent_anchor_usecs;
     uint32_t total_procedure_usecs = cssm->step_anchor_usecs - cssm->procedure_anchor_usecs;
+
+    bs_trace_raw_time(0, "step_duration_usecs %d\n", step_duration_usecs);
+    bs_trace_raw_time(0, "total_subevent_usecs %d\n", total_subevent_usecs);
+    bs_trace_raw_time(0, "total_procedure_usecs %d\n", total_procedure_usecs);
+    bs_trace_raw_time(0, "max_procedure_len_usecs %d\n", max_procedure_len_usecs);
+    bs_trace_raw_time(0, "max_subevent_len_usecs %d\n", max_subevent_len_usecs);
 
     if (total_procedure_usecs + step_duration_usecs > max_procedure_len_usecs ||
         cssm->steps_in_procedure_count + 1 >= BLE_LL_CS_STEPS_PER_PROCEDURE_MAX) {
@@ -1038,6 +1047,7 @@ ble_ll_cs_proc_skip_txrx(struct ble_ll_cs_sm *cssm)
 {
     struct ble_ll_cs_step_transmission *step = cssm->step_transmission;
 
+    bs_trace_raw_time(0, "SKIPPING TRANSMISSION, now = %d [ticks]\n", ble_ll_tmr_get());
     cssm->anchor_usecs += step->duration_usecs + step->end_tifs;
     ble_ll_cs_proc_schedule_next_tx_or_rx(cssm);
 
@@ -1187,6 +1197,10 @@ ble_ll_cs_setup_next_step(struct ble_ll_cs_sm *cssm)
         return rc;
     }
 
+    bs_trace_raw_time(0, "New step: mode %d, procedure %d, event %d, subevent %d, step %d\n",
+                      cssm->step_mode, cssm->procedure_count, cssm->events_in_procedure_count,
+                      cssm->subevents_in_event_count, cssm->steps_in_subevent_count);
+
     /* Update the transmission anchor, because the step anchor may have been
      * moved to the next subevent.
      */
@@ -1331,6 +1345,13 @@ ble_ll_cs_proc_schedule_next_tx_or_rx(struct ble_ll_cs_sm *cssm)
 
     anchor_cputime = ble_ll_tmr_u2t(cssm->anchor_usecs);
 
+    bs_trace_raw_time(0, "now = %d [ticks] = %d [us]\n", ble_ll_tmr_get(),
+                      ble_ll_tmr_t2u(ble_ll_tmr_get()));
+    bs_trace_raw_time(0, "expected radio start = %d [us]\n", cssm->anchor_usecs);
+    bs_trace_raw_time(0, "expected radio end = %d [us] = %d [us] + %d [us]\n",
+                      cssm->anchor_usecs + step->duration_usecs,
+                      cssm->anchor_usecs, step->duration_usecs);
+
     if (anchor_cputime - g_ble_ll_sched_offset_ticks > ble_ll_tmr_get()) {
         if (ble_ll_state_get() == BLE_LL_STATE_CS) {
             ble_phy_disable();
@@ -1345,6 +1366,8 @@ ble_ll_cs_proc_schedule_next_tx_or_rx(struct ble_ll_cs_sm *cssm)
         cssm->sch.cb_arg = cssm;
         cssm->sch.sched_cb = ble_ll_cs_proc_sched_cb;
         rc = ble_ll_sched_cs_proc(&cssm->sch);
+        bs_trace_raw_time(0, "sch.start_time = %d [ticks]\n", cssm->sch.start_time);
+        bs_trace_raw_time(0, "sch.end_time = %d [ticks]\n", cssm->sch.end_time);
     } else {
         /* Radio start already scheduled, just configure. */
         rc = step->cb(cssm);
@@ -1417,6 +1440,8 @@ ble_ll_cs_proc_scheduling_start(struct ble_ll_conn_sm *connsm, uint8_t config_id
 
     rc = ble_ll_cs_init_subevent(&cssm->buffered_subevent, cssm);
     BLE_LL_ASSERT(rc == 0);
+
+    bs_trace_raw_time(0, "Procedure start: %d [us]\n", cssm->anchor_usecs);
 
     rc = ble_ll_cs_proc_schedule_next_tx_or_rx(cssm);
     if (rc) {
