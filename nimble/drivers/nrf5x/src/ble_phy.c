@@ -991,6 +991,7 @@ ble_phy_rx_xcvr_setup(void)
 
     /* Turn off trigger TXEN on output compare match and AAR on bcmatch */
     phy_ppi_timer0_compare0_to_radio_txen_disable();
+    phy_ppi_timer0_compare0_to_radio_start_disable();
     phy_ppi_radio_bcmatch_to_aar_start_disable();
 
     /* Reset the rx started flag. Used for the wait for response */
@@ -1024,6 +1025,10 @@ ble_phy_rx_xcvr_setup(void)
                         RADIO_SHORTS_ADDRESS_BCSTART_Msk |
                         RADIO_SHORTS_ADDRESS_RSSISTART_Msk |
                         RADIO_SHORTS_DISABLED_RSSISTOP_Msk;
+
+    if (g_ble_phy_data.tifs_usecs < BLE_LL_IFS) {
+        NRF_RADIO->SHORTS &= ~RADIO_SHORTS_END_DISABLE_Msk;
+    }
 
     nrf_radio_int_enable(NRF_RADIO, RADIO_INTENSET_ADDRESS_Msk |
                          RADIO_INTENSET_DISABLED_Msk);
@@ -1086,11 +1091,18 @@ ble_transition_to_tx(uint8_t tifs_anchor, uint16_t tifs_usecs, uint16_t wfr_usec
     phy_fem_enable_pa();
 #endif
 
-    /* Adjust for TX rump-up */
-    radio_time -= BLE_PHY_T_TXENFAST;
-    /* Adjust for delay between EVENT_READY and actual TX start time */
-    radio_time -= g_ble_phy_t_txdelay[next_phy_mode];
-    phy_ppi_timer0_compare0_to_radio_txen_enable();
+    if (NRF_RADIO->STATE == RADIO_STATE_STATE_Disabled) {
+        /* Adjust for TX rump-up */
+        radio_time -= BLE_PHY_T_TXENFAST;
+        /* Adjust for delay between EVENT_READY and actual TX start time */
+        radio_time -= g_ble_phy_t_txdelay[next_phy_mode];
+        phy_ppi_timer0_compare0_to_radio_txen_enable();
+    } else {
+        /* Fast TX_TX transition */
+        /* TODO: Adjust for delay between TASK_START and actual TX start time */
+        radio_time -= g_ble_phy_t_txdelay[next_phy_mode];
+        phy_ppi_timer0_compare0_to_radio_start_enable();
+    }
 
     /* Need to check if TIMER0 did not already count past CC[0] and/or CC[2], so
      * we're not stuck waiting for events in case radio and/or PA was not
@@ -1145,11 +1157,17 @@ ble_transition_to_rx(uint8_t tifs_anchor, uint16_t tifs_usecs, uint16_t wfr_usec
     phy_fem_enable_lna();
 #endif
 
-    /* Adjust for RX rump-up */
-    radio_time -= BLE_PHY_T_RXENFAST;
-    /* Start listening a bit earlier due to allowed active clock accuracy */
-    radio_time -= 2;
-    phy_ppi_timer0_compare0_to_radio_rxen_enable();
+    if (NRF_RADIO->STATE == RADIO_STATE_STATE_Disabled) {
+        /* Adjust for RX rump-up */
+        radio_time -= BLE_PHY_T_RXENFAST;
+        /* Start listening a bit earlier due to allowed active clock accuracy */
+        radio_time -= 2;
+        phy_ppi_timer0_compare0_to_radio_rxen_enable();
+    } else {
+        /* Start listening a bit earlier due to allowed active clock accuracy */
+        radio_time -= 2;
+        phy_ppi_timer0_compare0_to_radio_start_enable();
+    }
 
     /* Setup wfr relative to expected radio/PDU start */
     wfr_time = start_time;
@@ -1193,6 +1211,7 @@ ble_transition_to_none(void)
     phy_ppi_wfr_disable();
     phy_ppi_timer0_compare0_to_radio_txen_disable();
     phy_ppi_rtc0_compare0_to_timer0_start_disable();
+    phy_ppi_timer0_compare0_to_radio_start_disable();
     ble_phy_disable();
     phy_ppi_fem_disable();
 
@@ -1308,6 +1327,8 @@ ble_phy_rx_end_isr(void)
 
     /* Disable automatic RXEN */
     phy_ppi_timer0_compare0_to_radio_rxen_disable();
+    /* Disable automatic RX START */
+    phy_ppi_timer0_compare0_to_radio_start_disable();
 
     /* Set RSSI and CRC status flag in header */
     ble_hdr = &g_ble_phy_data.rxhdr;
@@ -1889,6 +1910,7 @@ ble_phy_tx_set_start_time(uint32_t cputime, uint8_t rem_usecs)
     /* XXX: This should not be necessary, but paranoia is good! */
     /* Clear timer0 compare to RXEN since we are transmitting */
     phy_ppi_timer0_compare0_to_radio_rxen_disable();
+    phy_ppi_timer0_compare0_to_radio_start_disable();
 
     if (ble_phy_set_start_time(cputime, rem_usecs, true) != 0) {
         STATS_INC(ble_phy_stats, tx_late);
@@ -1931,6 +1953,7 @@ ble_phy_rx_set_start_time(uint32_t cputime, uint8_t rem_usecs)
     /* XXX: This should not be necessary, but paranoia is good! */
     /* Clear timer0 compare to TXEN since we are transmitting */
     phy_ppi_timer0_compare0_to_radio_txen_disable();
+    phy_ppi_timer0_compare0_to_radio_start_disable();
 
     if (ble_phy_set_start_time(cputime, rem_usecs, false) != 0) {
         STATS_INC(ble_phy_stats, rx_late);
@@ -2051,6 +2074,9 @@ ble_phy_tx(ble_phy_tx_pducb_t pducb, void *pducb_arg)
 
     /* Enable shortcuts for transmit start/end. */
     shortcuts = RADIO_SHORTS_END_DISABLE_Msk | RADIO_SHORTS_READY_START_Msk;
+    if (g_ble_phy_data.tifs_usecs < BLE_LL_IFS) {
+        shortcuts &= ~RADIO_SHORTS_END_DISABLE_Msk;
+    }
     NRF_RADIO->SHORTS = shortcuts;
     nrf_radio_int_enable(NRF_RADIO, RADIO_INTENSET_DISABLED_Msk);
 
