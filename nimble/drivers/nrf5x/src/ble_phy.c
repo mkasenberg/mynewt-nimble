@@ -210,22 +210,6 @@ struct ble_phy_obj
     uint32_t txend_time_ticks;
     uint32_t rxend_time_ticks;
 #endif
-
-    uint32_t debug_cc0;
-    uint32_t debug_cc1;
-    uint32_t debug_cc2;
-    uint32_t debug_cc3;
-    uint32_t debug_cc4;
-    uint32_t debug_cc5;
-    uint32_t debug_cc0_us;
-    uint32_t debug_cc1_us;
-    uint32_t debug_cc2_us;
-    uint32_t debug_cc3_us;
-    uint32_t debug_cc4_us;
-    uint32_t debug_cc5_us;
-    uint8_t events_phyend;
-    uint8_t events_end;
-    uint8_t events_disabled;
 };
 static struct ble_phy_obj g_ble_phy_data;
 
@@ -1409,22 +1393,6 @@ ble_transition_to_rx(uint8_t tifs_anchor, uint16_t tifs_usecs, uint16_t wfr_usec
                       phy_state == BLE_PHY_STATE_TX ? "TX" : "RX",
                       anchor_time, radio_time, start_time);
 
-    if (ble_ll_state_get() == BLE_LL_STATE_CS) {
-#ifdef NRF54L_SERIES
-        nrf_timer_task_trigger(NRF_TIMER0, NRF_TIMER_TASK_CAPTURE4);
-        g_ble_phy_data.debug_cc4_us = RADIO_TIMER_TICKS_TO_US(NRF_TIMER0->CC[4]);
-        g_ble_phy_data.debug_cc4 = NRF_TIMER0->CC[4];
-#endif
-        g_ble_phy_data.debug_cc0_us = RADIO_TIMER_TICKS_TO_US(NRF_TIMER0->CC[0]);
-        g_ble_phy_data.debug_cc1_us = RADIO_TIMER_TICKS_TO_US(NRF_TIMER0->CC[1]);
-        g_ble_phy_data.debug_cc2_us = RADIO_TIMER_TICKS_TO_US(NRF_TIMER0->CC[2]);
-        g_ble_phy_data.debug_cc3_us = RADIO_TIMER_TICKS_TO_US(NRF_TIMER0->CC[3]);
-        g_ble_phy_data.debug_cc0 = NRF_TIMER0->CC[0];
-        g_ble_phy_data.debug_cc1 = NRF_TIMER0->CC[1];
-        g_ble_phy_data.debug_cc2 = NRF_TIMER0->CC[2];
-        g_ble_phy_data.debug_cc3 = NRF_TIMER0->CC[3];
-    }
-
     return 0;
 }
 
@@ -1808,12 +1776,6 @@ ble_phy_isr(void)
     irq_en = NRF_RADIO->INTENSET;
 #endif
 
-    if (ble_ll_state_get() == BLE_LL_STATE_CS) {
-        nrf_timer_task_trigger(NRF_TIMER0, NRF_TIMER_TASK_CAPTURE5);
-        g_ble_phy_data.debug_cc5_us = RADIO_TIMER_TICKS_TO_US(NRF_TIMER0->CC[5]);
-        g_ble_phy_data.debug_cc5 = NRF_TIMER0->CC[5];
-    }
-
     /*
      * NOTE: order of checking is important! Possible, if things get delayed,
      * we have both an ADDRESS and DISABLED interrupt in rx state. If we get
@@ -1822,11 +1784,6 @@ ble_phy_isr(void)
 
     /* We get this if we have started to receive a frame */
     if ((irq_en & RADIO_INTENCLR_ADDRESS_Msk) && NRF_RADIO->EVENTS_ADDRESS) {
-        if (ble_ll_state_get() == BLE_LL_STATE_CS) {
-            nrf_timer_task_trigger(NRF_TIMER0, NRF_TIMER_TASK_CAPTURE5);
-            g_ble_phy_data.debug_cc5_us = RADIO_TIMER_TICKS_TO_US(NRF_TIMER0->CC[5]);
-            g_ble_phy_data.debug_cc5 = NRF_TIMER0->CC[5];
-        }
         /*
          * wfr timer is calculated to expire at the exact time we should start
          * receiving a packet (with 1 usec precision) so it is possible  it will
@@ -1858,12 +1815,9 @@ ble_phy_isr(void)
                        !g_ble_phy_data.phy_rx_started) ||
                       g_ble_phy_data.phy_feature_mode == PHY_FEAT_MODE_BLE_CS_TONE);
 #ifdef NRF54L_SERIES
-        g_ble_phy_data.events_phyend = NRF_RADIO->EVENTS_PHYEND;
         NRF_RADIO->EVENTS_PHYEND = 0;
 #endif
-        g_ble_phy_data.events_end = NRF_RADIO->EVENTS_END;
         NRF_RADIO->EVENTS_END = 0;
-        g_ble_phy_data.events_disabled = NRF_RADIO->EVENTS_DISABLED;
         NRF_RADIO->EVENTS_DISABLED = 0;
         nrf_radio_int_disable(NRF_RADIO, RADIO_INTENCLR_DISABLED_Msk | RADIO_INTENCLR_END_Msk |
                               RADIO_INTENCLR00_PHYEND_Msk);
@@ -2690,12 +2644,6 @@ ble_phy_restart_rx(void)
 void
 ble_phy_disable(void)
 {
-    if (ble_ll_state_get() == BLE_LL_STATE_CS) {
-        nrf_timer_task_trigger(NRF_TIMER0, NRF_TIMER_TASK_CAPTURE5);
-        g_ble_phy_data.debug_cc5_us = RADIO_TIMER_TICKS_TO_US(NRF_TIMER0->CC[5]);
-        g_ble_phy_data.debug_cc5 = NRF_TIMER0->CC[5];
-    }
-
     ble_phy_trace_void(BLE_PHY_TRACE_ID_DISABLE);
 
 #if PHY_USE_HEADERMASK_WORKAROUND
