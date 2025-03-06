@@ -75,8 +75,6 @@
 #define RADIO_INTENCLR_DISABLED_Msk RADIO_INTENCLR00_DISABLED_Msk
 #endif
 
-#define TIMER00_AS_RADIO_TIMER 0
-
 #if BABBLESIM
 extern void tm_tick(void);
 #undef RADIO_STATE_STATE_Tx
@@ -1897,9 +1895,6 @@ ble_phy_init(void)
 #endif
     NRF_TIMER0->BITMODE = 3;    /* 32-bit timer */
     NRF_TIMER0->MODE = 0;       /* Timer mode */
-#if TIMER00_AS_RADIO_TIMER
-    NRF_TIMER00->PRESCALER = 7;  /* gives us 1 MHz */
-#endif
 #ifdef NRF54L_SERIES
     NRF_TIMER0->PRESCALER = 5;  /* gives us 1 MHz */
 #else
@@ -1910,7 +1905,6 @@ ble_phy_init(void)
 #endif
 
 #ifdef NRF54L_SERIES
-//#if !TIMER00_AS_RADIO_TIMER
     nrf_timer_task_trigger(NRF_TIMER00, NRF_TIMER_TASK_STOP);
     NRF_TIMER00->BITMODE = 3;    /* 32-bit timer */
     NRF_TIMER00->MODE = 0;       /* Timer mode */
@@ -2728,10 +2722,6 @@ ble_phy_cs_sync_mode_set(uint8_t mode)
                        (NRF_BALEN << RADIO_PCNF1_BALEN_Pos) |
                        RADIO_PCNF1_WHITEEN_Msk;
 
-#if TIMER00_AS_RADIO_TIMER
-        nrf_timer_task_trigger(NRF_TIMER00, NRF_TIMER_TASK_STOP);
-        NRF_TIMER00->PRESCALER = 7;
-#endif
         g_ble_phy_data.radio_timer_ticks_per_us = 1;
         g_ble_phy_data.phy_bcc = 8;
         //        NRF_RADIO->RTT.CONFIG = 0;
@@ -2743,11 +2733,7 @@ ble_phy_cs_sync_mode_set(uint8_t mode)
         /* Disable whitening */
         NRF_RADIO->PCNF1 = (RADIO_PCNF1_ENDIAN_Little <<  RADIO_PCNF1_ENDIAN_Pos) |
                            (NRF_BALEN << RADIO_PCNF1_BALEN_Pos);
-#if TIMER00_AS_RADIO_TIMER
-        nrf_timer_task_trigger(NRF_TIMER00, NRF_TIMER_TASK_STOP);
-        NRF_TIMER00->PRESCALER = 0;  /* gives us 128MHz */
-        g_ble_phy_data.radio_timer_ticks_per_us = 128;
-#endif
+
         g_ble_phy_data.phy_bcc = 0;
 //        NRF_RADIO->RTT.CONFIG = RADIO_RTT_CONFIG_EN_Enabled << RADIO_RTT_CONFIG_EN_Pos |
 //                                RADIO_RTT_CONFIG_ENFULLAA_Enabled << RADIO_RTT_CONFIG_ENFULLAA_Pos |
@@ -2825,11 +2811,8 @@ ble_phy_tx_cs_tone(uint16_t duration_usecs)
         /* There will not be PHY_END and DISABLED event,
          * because no packet will be sent. Let's use wfr as a timer.
          */
-#if TIMER00_AS_RADIO_TIMER
-        end_time = NRF_TIMER00->CC[0] + RADIO_TIMER_US_TO_TICKS(duration_usecs);
-#else
         end_time = NRF_TIMER0->CC[0] + RADIO_TIMER_US_TO_TICKS(duration_usecs);
-#endif
+
         ble_phy_wfr_enable_at(end_time);
     } else {
         rc = ble_phy_transition(BLE_PHY_TRANSITION_TO_TX, PHY_TRANS_ANCHOR_END,
@@ -2856,11 +2839,7 @@ ble_phy_rx_cs_tone(uint16_t duration_usecs)
 
     ble_phy_cs_tone_mode_set(1);
 
-#if TIMER00_AS_RADIO_TIMER
-    anchor_usecs = RADIO_TIMER_TICKS_TO_US(NRF_TIMER00->CC[0]);
-#else
     anchor_usecs = RADIO_TIMER_TICKS_TO_US(NRF_TIMER0->CC[0]);
-#endif
 
     if (NRF_RADIO->STATE == RADIO_STATE_STATE_Disabled) {
         /* First CS tone slot, no CS_SYNC before */
