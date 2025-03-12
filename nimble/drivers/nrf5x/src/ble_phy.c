@@ -2699,6 +2699,7 @@ ble_phy_cs_sync_mode_set(uint8_t mode)
 {
 #if !BABBLESIM
     if (mode == 0) {
+        phy_ppi_debug_disable();
         /* Configure back the registers */
         NRF_RADIO->CRCCNF = (RADIO_CRCCNF_SKIPADDR_Skip << RADIO_CRCCNF_SKIPADDR_Pos) | RADIO_CRCCNF_LEN_Three;
         NRF_RADIO->PCNF0 = NRF_PCNF0;
@@ -2710,6 +2711,7 @@ ble_phy_cs_sync_mode_set(uint8_t mode)
         g_ble_phy_data.phy_bcc = 8;
         //        NRF_RADIO->RTT.CONFIG = 0;
     } else {
+        phy_ppi_debug_enable();
         /* CS SYNC packet has no PDU or CRC */
         NRF_RADIO->CRCCNF = (RADIO_CRCCNF_SKIPADDR_Skip << RADIO_CRCCNF_SKIPADDR_Pos);
         /* CS_SYNC needs only PAYLOAD field, so do not trasmit S0, LENGTH and S1 fields. */
