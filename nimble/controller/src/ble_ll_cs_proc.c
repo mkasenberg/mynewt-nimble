@@ -1081,10 +1081,14 @@ ble_ll_cs_proc_transition_get(ble_ll_cs_sched_cb_func cb)
 {
     uint8_t transition;
 
-    if (cb == ble_ll_cs_sync_tx_start || cb == ble_ll_cs_tone_tx_start) {
-        transition = BLE_PHY_TRANSITION_TO_TX;
-    } else if (cb == ble_ll_cs_sync_rx_start || cb == ble_ll_cs_tone_rx_start) {
-        transition = BLE_PHY_TRANSITION_TO_RX;
+    if (cb == ble_ll_cs_sync_tx_start) {
+        transition = BLE_PHY_TRANSITION_TO_TX_CS_SYNC;
+    } else if (cb == ble_ll_cs_sync_rx_start) {
+        transition = BLE_PHY_TRANSITION_TO_RX_CS_SYNC;
+    } else if (cb == ble_ll_cs_tone_tx_start) {
+        transition = BLE_PHY_TRANSITION_TO_TX_CS_TONE;
+    } else if (cb == ble_ll_cs_tone_rx_start) {
+        transition = BLE_PHY_TRANSITION_TO_RX_CS_TONE;
     } else {
         transition = BLE_PHY_TRANSITION_NONE;
     }
@@ -1330,7 +1334,6 @@ ble_ll_cs_proc_schedule_next_tx_or_rx(struct ble_ll_cs_sm *cssm)
     if (anchor_cputime - g_ble_ll_sched_offset_ticks > ble_ll_tmr_get()) {
         if (ble_ll_state_get() == BLE_LL_STATE_CS) {
             ble_phy_disable();
-            ble_phy_cs_sync_mode_set(0);
             ble_ll_state_set(BLE_LL_STATE_STANDBY);
         }
 
@@ -1429,7 +1432,6 @@ ble_ll_cs_proc_sync_lost(struct ble_ll_cs_sm *cssm)
     ble_ll_cs_proc_set_now_as_anchor_point(cssm);
     ble_phy_transition_set(BLE_PHY_TRANSITION_NONE, 0);
     ble_phy_disable();
-    ble_phy_cs_sync_mode_set(0);
     ble_ll_state_set(BLE_LL_STATE_STANDBY);
     /* TODO: Handle a lost sync */
 }

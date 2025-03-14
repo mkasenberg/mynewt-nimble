@@ -34,6 +34,7 @@ extern struct ble_ll_cs_supp_cap g_ble_ll_cs_local_cap;
 extern struct ble_ll_cs_sm g_ble_ll_cs_sm[MYNEWT_VAL(BLE_MAX_CONNECTIONS)];
 extern struct ble_ll_cs_sm *g_ble_ll_cs_sm_current;
 extern int8_t g_ble_ll_tx_power;
+void ble_phy_wfr_set(uint16_t usecs);
 
 static uint8_t
 ble_ll_cs_sync_calc_seq_quality(struct ble_ll_cs_sm *cssm, uint8_t *rxpdu,
@@ -167,8 +168,6 @@ ble_ll_cs_sync_tx_start(struct ble_ll_cs_sm *cssm)
     ll_state = ble_ll_state_get();
     BLE_LL_ASSERT(ll_state == BLE_LL_STATE_STANDBY || ll_state == BLE_LL_STATE_CS);
 
-    ble_phy_cs_sync_mode_set(1);
-
     ble_ll_tx_power_set(g_ble_ll_tx_power);
 
     rc = ble_phy_cs_sync_configure(cssm->channel, cssm->tx_aa);
@@ -179,6 +178,7 @@ ble_ll_cs_sync_tx_start(struct ble_ll_cs_sm *cssm)
 
     cputime = ble_ll_tmr_u2t_r(cssm->anchor_usecs, &rem_us);
     ble_phy_transition_set(step->end_transition, step->end_tifs);
+    ble_phy_wfr_set((step + 1)->duration_usecs);
 
     /* At transition the radio is already scheduled to start at the right time */
     if (ll_state != BLE_LL_STATE_CS) {
@@ -191,7 +191,7 @@ ble_ll_cs_sync_tx_start(struct ble_ll_cs_sm *cssm)
 
     ble_phy_set_txend_cb(ble_ll_cs_sync_tx_end_cb, cssm);
 
-    rc = ble_phy_tx_cs_sync(ble_ll_cs_sync_tx_make, cssm);
+    rc = ble_phy_tx(ble_ll_cs_sync_tx_make, cssm);
     if (rc) {
         ble_ll_cs_proc_sync_lost(cssm);
         return 1;
@@ -214,8 +214,6 @@ ble_ll_cs_sync_rx_start(struct ble_ll_cs_sm *cssm)
     ll_state = ble_ll_state_get();
     BLE_LL_ASSERT(ll_state == BLE_LL_STATE_STANDBY || ll_state == BLE_LL_STATE_CS);
 
-    ble_phy_cs_sync_mode_set(1);
-
     rc = ble_phy_cs_sync_configure(cssm->channel, cssm->rx_aa);
     if (rc) {
         ble_ll_cs_proc_sync_lost(cssm);
@@ -224,19 +222,21 @@ ble_ll_cs_sync_rx_start(struct ble_ll_cs_sm *cssm)
 
     cputime = ble_ll_tmr_u2t_r(cssm->anchor_usecs, &rem_us);
     ble_phy_transition_set(step->end_transition, step->end_tifs);
+    ble_phy_wfr_set((step + 1)->duration_usecs);
 
     if (ll_state == BLE_LL_STATE_CS) {
         /* At transition the radio is already scheduled to start at the right time */
         return 0;
     }
 
+    /* Puts the phy into a receive mode and shedules the radio start */
     rc = ble_phy_rx_set_start_time(cputime, rem_us);
     if (rc) {
         ble_ll_cs_proc_sync_lost(cssm);
         return 1;
     }
 
-    ble_phy_wfr_enable(BLE_PHY_WFR_ENABLE_RX, 0, step->wfr_usecs);
+    ble_phy_wfr_enable(BLE_PHY_WFR_ENABLE_RX, 0, step->duration_usecs);
     ble_ll_state_set(BLE_LL_STATE_CS);
     return 0;
 }

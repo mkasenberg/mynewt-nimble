@@ -60,6 +60,8 @@ struct os_mbuf;
 #define BLE_PHY_STATE_IDLE          (0)
 #define BLE_PHY_STATE_RX            (1)
 #define BLE_PHY_STATE_TX            (2)
+#define BLE_PHY_STATE_TX_CS_TONE    (3)
+#define BLE_PHY_STATE_RX_CS_TONE    (4)
 
 /* BLE PHY transitions */
 #define BLE_PHY_TRANSITION_NONE                (0)
@@ -67,6 +69,10 @@ struct os_mbuf;
 #define BLE_PHY_TRANSITION_TO_RX               (2)
 #define BLE_PHY_TRANSITION_TO_TX_ISO_SUBEVENT  (3)
 #define BLE_PHY_TRANSITION_TO_RX_ISO_SUBEVENT  (4)
+#define BLE_PHY_TRANSITION_TO_TX_CS_SYNC       (5)
+#define BLE_PHY_TRANSITION_TO_RX_CS_SYNC       (6)
+#define BLE_PHY_TRANSITION_TO_TX_CS_TONE       (7)
+#define BLE_PHY_TRANSITION_TO_RX_CS_TONE       (8)
 
 /* PHY error codes */
 #define BLE_PHY_ERR_RADIO_STATE     (1)
@@ -82,6 +88,10 @@ struct os_mbuf;
 #define BLE_PHY_CS_TIMER_NONE       (0)
 #define BLE_PHY_CS_TIMER_START      (1)
 #define BLE_PHY_CS_TIMER_CAPTURE    (2)
+
+#define BLE_PHY_CS_TONE_MODE_PM    (0)
+#define BLE_PHY_CS_TONE_MODE_FM    (1)
+#define BLE_PHY_CS_TONE_MODE_PM_FM (2)
 
 /* Wait for response timer */
 typedef void (*ble_phy_tx_end_func)(void *arg);
@@ -101,6 +111,9 @@ int ble_phy_tx_set_start_time(uint32_t cputime, uint8_t rem_usecs);
 
 /* Set receive start time */
 int ble_phy_rx_set_start_time(uint32_t cputime, uint8_t rem_usecs);
+
+/* Set radio stop time */
+int ble_phy_set_stop_time(uint32_t duration_usecs);
 
 /* Set the transmit end callback and argument */
 void ble_phy_set_txend_cb(ble_phy_tx_end_func txend_cb, void *arg);
@@ -236,11 +249,8 @@ static inline int ble_ll_phy_to_phy_mode(int phy, int phy_options)
 
 void ble_phy_get_txend_time(uint32_t *cputime, uint32_t *rem_us, uint32_t *rem_ns);
 void ble_phy_get_rxend_time(uint32_t *cputime, uint32_t *rem_us, uint32_t *rem_ns);
-typedef uint8_t (*ble_phy_tx_cs_sync_cb_t)(uint8_t *dptr, void *pducb_arg, uint8_t *hdr_byte);
-void ble_phy_cs_sync_mode_set(uint8_t mode);
-void ble_phy_cs_tone_mode_set(uint8_t mode);
-int ble_phy_tx_cs_sync(ble_phy_tx_cs_sync_cb_t pktcb, void *pktcb_arg);
 int ble_phy_cs_sync_configure(uint8_t chan, uint32_t access_addr);
+int ble_phy_cs_tone_configure(uint8_t chan, uint8_t tone_mode);
 
 #if MYNEWT_VAL(BLE_LL_DTM)
 void ble_phy_enable_dtm(void);
