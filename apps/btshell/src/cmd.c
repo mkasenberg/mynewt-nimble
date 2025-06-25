@@ -1066,6 +1066,52 @@ cmd_disconnect(int argc, char **argv)
     return 0;
 }
 
+static void
+on_mystop(int status, void *arg)
+{
+    if (status == 0) {
+        console_printf("host stopped\n");
+    } else {
+        console_printf("host failed to stop; rc=%d\n", status);
+    }
+
+    ble_gatts_reset();
+}
+
+static void on_stop(int status, void *arg);
+
+static int
+cmd_mydisconnect(int argc, char **argv)
+{
+    static struct ble_hs_stop_listener listener;
+    uint16_t conn_handle;
+    int rc;
+
+    rc = parse_arg_init(argc - 1, argv + 1);
+    if (rc != 0) {
+        return rc;
+    }
+
+    conn_handle = parse_arg_uint16("conn", &rc);
+    if (rc != 0) {
+        console_printf("invalid 'conn' parameter\n");
+        return rc;
+    }
+
+    rc = btshell_term_conn(conn_handle, BLE_ERR_REM_USER_CONN_TERM);
+    if (rc != 0) {
+        console_printf("error terminating connection; rc=%d\n", rc);
+        return rc;
+    }
+
+    rc = ble_hs_stop(&listener, on_mystop, NULL);
+    if (rc) {
+        return rc;
+    }
+
+    return 0;
+}
+
 static int
 cmd_show_conn(int argc, char **argv)
 {
@@ -4438,6 +4484,13 @@ static const struct shell_cmd btshell_commands[] = {
         .sc_cmd_func = cmd_connect,
 #if MYNEWT_VAL(SHELL_CMD_HELP)
         .help = &connect_help,
+#endif
+    },
+    {
+            .sc_cmd = "mydisconnect",
+            .sc_cmd_func = cmd_mydisconnect,
+#if MYNEWT_VAL(SHELL_CMD_HELP)
+                .help = &disconnect_help,
 #endif
     },
     {
