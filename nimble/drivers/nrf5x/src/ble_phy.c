@@ -605,7 +605,7 @@ timer0_did_miss(int timer, int scratch)
 {
     nrf_timer_task_trigger(NRF_TIMER0, nrf_timer_capture_task_get(scratch));
     uint32_t ticks_rem = NRF_TIMER0->CC[timer] - NRF_TIMER0->CC[scratch];
-    return (ticks_rem >= 0x80000000) && !NRF_TIMER0->EVENTS_COMPARE[timer];
+    return (ticks_rem == 0 || ticks_rem >= 0x80000000) && !NRF_TIMER0->EVENTS_COMPARE[timer];
 }
 
 /**
