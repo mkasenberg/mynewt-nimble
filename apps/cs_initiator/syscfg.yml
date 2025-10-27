@@ -40,5 +40,5 @@ syscfg.vals:
     BLE_EXT_ADV: 1
     BLE_EXT_ADV_MAX_SIZE: 251
     BLE_PHY_2M: 1
-    BLE_SM_SC: 1
-    BLE_SM_LVL: 2
+#    BLE_SM_SC: 1
+#    BLE_SM_LVL: 2
