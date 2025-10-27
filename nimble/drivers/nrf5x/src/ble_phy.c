@@ -116,6 +116,8 @@ extern void tm_tick(void);
  * crystal accuracy. Look at this in the spec.
  */
 
+uint8_t g_ble_phy_cs_lock = 0;
+
 /* XXX: private header file? */
 extern uint8_t g_nrf_num_irks;
 extern uint32_t g_nrf_irk_list[];
@@ -693,6 +695,8 @@ ble_phy_set_start_time(uint32_t cputime, uint8_t rem_us, bool tx)
     int rem_us_corr;
     int min_rem_us;
 
+    BLE_LL_ASSERT(g_ble_phy_cs_lock == 0);
+
     /* Calculate rem_us for radio and FEM enable. The result may be a negative
      * value, but we'll adjust later.
      */
@@ -813,6 +817,8 @@ ble_phy_set_start_now(void)
 #if PHY_USE_FEM_LNA
     uint32_t fem_rem_us;
 #endif
+
+    BLE_LL_ASSERT(g_ble_phy_cs_lock == 0);
 
     OS_ENTER_CRITICAL(sr);
 
@@ -2054,6 +2060,8 @@ ble_phy_tx_set_start_time(uint32_t cputime, uint8_t rem_usecs)
 {
     int rc;
 
+    BLE_LL_ASSERT(g_ble_phy_cs_lock == 0);
+
     ble_phy_trace_u32x2(BLE_PHY_TRACE_ID_START_TX, cputime, rem_usecs);
 
 #if MYNEWT_VAL(BLE_LL_PHY)
@@ -2095,6 +2103,8 @@ ble_phy_rx_set_start_time(uint32_t cputime, uint8_t rem_usecs)
 {
     bool late = false;
     int rc = 0;
+
+    BLE_LL_ASSERT(g_ble_phy_cs_lock == 0);
 
     ble_phy_trace_u32x2(BLE_PHY_TRACE_ID_START_RX, cputime, rem_usecs);
 
@@ -2143,6 +2153,8 @@ ble_phy_tx(ble_phy_tx_pducb_t pducb, void *pducb_arg)
     uint32_t state;
     uint32_t shortcuts;
     uint8_t end_trans;
+
+    BLE_LL_ASSERT(g_ble_phy_cs_lock == 0);
 
     if (g_ble_phy_data.phy_transition_late) {
         ble_phy_disable();
@@ -2431,6 +2443,8 @@ ble_phy_tx_power_get(void)
 int
 ble_phy_setchan(uint8_t chan, uint32_t access_addr, uint32_t crcinit)
 {
+    BLE_LL_ASSERT(g_ble_phy_cs_lock == 0);
+
     assert(chan < BLE_PHY_NUM_CHANS);
 
     /* Check for valid channel range */
