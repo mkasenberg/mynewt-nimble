@@ -38,7 +38,7 @@
 <a/>
 
 <p>
-
+Dummy change
 Apache NimBLE is an open-source Bluetooth 5.4 stack (both Host & Controller)
 that completely replaces the proprietary SoftDevice on Nordic chipsets. It is
 part of [Apache Mynewt project](https://github.com/apache/mynewt-core).
