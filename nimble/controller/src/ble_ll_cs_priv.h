@@ -28,6 +28,16 @@
 extern "C" {
 #endif
 
+#define USE_BLE_LL_CS_ASSERT 1
+
+#ifndef BLE_LL_CS_ASSERT
+#ifdef USE_BLE_LL_CS_ASSERT
+#define BLE_LL_CS_ASSERT(x) ((void)0)
+#else
+#define BLE_LL_CS_ASSERT(x) assert(x)
+#endif
+#endif
+
 #define BLE_LL_CS_MODE0 (0)
 #define BLE_LL_CS_MODE1 (1)
 #define BLE_LL_CS_MODE2 (2)

@@ -986,6 +986,7 @@ ble_ll_cs_rx_config_req(struct ble_ll_conn_sm *connsm, uint8_t *dptr,
     conf->t_pm_index = dptr[25];
 
     if (ble_ll_cs_verify_config(conf)) {
+        BLE_LL_CS_ASSERT(0);
         ble_ll_ctrl_rej_ext_ind_make(BLE_LL_CTRL_CS_CONFIG_REQ,
                                      BLE_ERR_UNSUPP_LMP_LL_PARM, rspbuf);
         return BLE_LL_CTRL_REJECT_IND_EXT;
@@ -1142,6 +1143,7 @@ ble_ll_cs_hci_create_config(const uint8_t *cmdbuf, uint8_t cmdlen)
     conf->t_pm = t_pm[conf->t_pm_index];
 
     if (ble_ll_cs_verify_config(conf)) {
+        BLE_LL_CS_ASSERT(0);
         memset(conf, 0, sizeof(*conf));
         return BLE_ERR_INV_HCI_CMD_PARMS;
     }

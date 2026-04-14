@@ -1314,6 +1314,7 @@ ble_ll_cs_proc_schedule_next_subevent(struct ble_ll_cs_sm *cssm)
     anchor_cputime = ble_ll_tmr_u2t(cssm->anchor_usecs);
 
     if (anchor_cputime - g_ble_ll_sched_offset_ticks < ble_ll_tmr_get()) {
+        BLE_LL_CS_ASSERT(0);
         return 1;
     }
 
@@ -1385,6 +1386,7 @@ ble_ll_cs_proc_schedule_first_subevent(struct ble_ll_cs_sm *cssm)
     ble_ll_tmr_add(&anchor_ticks, &anchor_rem_usecs, params->event_offset);
 
     if (anchor_ticks - g_ble_ll_sched_offset_ticks < ble_ll_tmr_get()) {
+        BLE_LL_CS_ASSERT(0);
         /* The start happend too late for the negotiated event counter. */
         return BLE_ERR_INV_LMP_LL_PARM;
     }
